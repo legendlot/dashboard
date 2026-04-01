@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOT — Production Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Tomorrow:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --yellow: #F2CD1A;
+  --blue:   #213CE2;
+  --red:    #DE2A2A;
+  --green:  #22c55e;
+  --orange: #f59e0b;
+  --bg:     #080808;
+  --s1:     #0f0f0f;
+  --s2:     #151515;
+  --s3:     #1e1e1e;
+  --s4:     #252525;
+  --b1:     #2a2a2a;
+  --b2:     #333;
+  --b3:     #444;
+  --text:   #f0f0f0;
+  --t2:     #999;
+  --t3:     #555;
+  --mono:   'JetBrains Mono', monospace;
+  --head:   'Tomorrow', sans-serif;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;overflow:hidden}
+
+/* ── SCAN LINES TEXTURE ── */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,255,255,0.008) 3px,rgba(255,255,255,0.008) 4px);
+}
+
+/* ══════════════════════
+   LOGIN
+══════════════════════ */
+#login{
+  position:fixed;inset:0;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:100;gap:0;
+}
+.login-mark{
+  font-family:var(--head);font-weight:900;font-size:10px;
+  letter-spacing:.5em;color:var(--t3);text-transform:uppercase;margin-bottom:48px;
+}
+.login-mark span{color:var(--yellow)}
+.login-title{
+  font-family:var(--head);font-weight:900;font-size:32px;
+  text-transform:uppercase;letter-spacing:.02em;margin-bottom:4px;
+}
+.login-sub{font-size:10px;color:var(--t3);letter-spacing:.2em;text-transform:uppercase;margin-bottom:40px}
+.login-form{width:320px;display:flex;flex-direction:column;gap:12px}
+.login-field input{
+  width:100%;background:var(--s2);border:1px solid var(--b2);border-radius:6px;
+  padding:13px 16px;color:var(--text);font-family:var(--mono);font-size:13px;
+  outline:none;transition:border-color .15s;
+}
+.login-field input:focus{border-color:var(--yellow)}
+.login-field input::placeholder{color:var(--t3)}
+.login-btn{
+  background:var(--yellow);color:#080808;border:none;border-radius:6px;
+  padding:14px;font-family:var(--head);font-weight:700;font-size:12px;
+  letter-spacing:.2em;text-transform:uppercase;cursor:pointer;
+  transition:opacity .15s,transform .1s;margin-top:4px;
+}
+.login-btn:hover{opacity:.9}
+.login-btn:active{transform:scale(.99)}
+.login-err{font-size:11px;color:var(--red);text-align:center;min-height:16px;margin-top:4px}
+
+/* ══════════════════════
+   APP SHELL
+══════════════════════ */
+#app{display:none;flex-direction:column;height:100vh;overflow:hidden}
+#app.show{display:flex}
+
+/* ── TOP BAR ── */
+.topbar{
+  display:flex;align-items:center;gap:16px;
+  padding:0 20px;height:48px;
+  background:var(--s1);border-bottom:1px solid var(--b1);
+  flex-shrink:0;position:relative;z-index:50;
+}
+.tb-logo{
+  font-family:var(--head);font-weight:900;font-size:11px;
+  letter-spacing:.3em;color:var(--yellow);text-transform:uppercase;
+  white-space:nowrap;
+}
+.tb-sep{width:1px;height:20px;background:var(--b2)}
+.tb-title{
+  font-family:var(--head);font-weight:700;font-size:12px;
+  letter-spacing:.15em;text-transform:uppercase;color:var(--t2);
+}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.tb-date{font-size:10px;color:var(--t3);letter-spacing:.08em}
+.tb-user{
+  font-size:10px;color:var(--yellow);letter-spacing:.1em;
+  text-transform:uppercase;font-weight:600;
+}
+.refresh-indicator{
+  width:6px;height:6px;border-radius:50%;background:var(--green);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.refresh-indicator.stale{background:var(--orange);animation:none}
+.tb-logout{
+  font-size:10px;color:var(--t3);letter-spacing:.1em;cursor:pointer;
+  text-transform:uppercase;padding:4px 8px;border:1px solid var(--b1);border-radius:4px;
+  transition:all .15s;
+}
+.tb-logout:hover{color:var(--text);border-color:var(--b3)}
+
+/* ── TABS ── */
+.tabs{
+  display:flex;background:var(--s1);border-bottom:1px solid var(--b1);
+  flex-shrink:0;padding:0 20px;gap:0;
+}
+.tab{
+  padding:10px 20px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+  font-weight:600;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;
+  transition:all .15s;position:relative;bottom:-1px;
+}
+.tab:hover{color:var(--t2)}
+.tab.active{color:var(--yellow);border-bottom-color:var(--yellow)}
+
+/* ── DATE BAR ── */
+.datebar{
+  display:flex;align-items:center;gap:12px;
+  padding:8px 20px;background:var(--s2);border-bottom:1px solid var(--b1);
+  flex-shrink:0;
+}
+.date-label{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--t3)}
+.date-input{
+  background:var(--s3);border:1px solid var(--b2);border-radius:4px;
+  padding:5px 10px;color:var(--text);font-family:var(--mono);font-size:11px;
+  outline:none;cursor:pointer;
+}
+.date-input:focus{border-color:var(--yellow)}
+.date-btn{
+  background:var(--s3);border:1px solid var(--b2);border-radius:4px;
+  padding:5px 12px;color:var(--t2);font-family:var(--mono);font-size:10px;
+  cursor:pointer;transition:all .12s;letter-spacing:.05em;
+}
+.date-btn:hover{border-color:var(--yellow);color:var(--yellow)}
+.last-refresh{margin-left:auto;font-size:10px;color:var(--t3)}
+
+/* ── CONTENT AREA ── */
+.content{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+.content::-webkit-scrollbar{width:4px}
+.content::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+
+/* ── SECTION LABEL ── */
+.sec-label{
+  font-size:9px;letter-spacing:.3em;text-transform:uppercase;
+  color:var(--t3);margin-bottom:8px;display:flex;align-items:center;gap:8px;
+}
+.sec-label::after{content:'';flex:1;height:1px;background:var(--b1)}
+
+/* ── STAT CARDS ── */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.card{
+  background:var(--s2);border:1px solid var(--b1);border-radius:8px;
+  padding:14px 16px;position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--b2);
+}
+.card.hi::before{background:var(--yellow)}
+.card.ok::before{background:var(--green)}
+.card.warn::before{background:var(--orange)}
+.card.bad::before{background:var(--red)}
+.card.blue::before{background:var(--blue)}
+.card-label{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--t3);margin-bottom:8px}
+.card-val{
+  font-family:var(--head);font-weight:900;font-size:28px;
+  line-height:1;color:var(--text);
+}
+.card-val.yellow{color:var(--yellow)}
+.card-val.green{color:var(--green)}
+.card-val.red{color:var(--red)}
+.card-sub{font-size:10px;color:var(--t3);margin-top:4px}
+
+/* ── LINE CARDS ── */
+.line-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.line-card{
+  background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:16px;
+}
+.lc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.lc-name{font-family:var(--head);font-weight:700;font-size:14px;color:var(--yellow)}
+.lc-product{font-size:10px;color:var(--t2);margin-top:1px}
+.lc-run{font-size:9px;color:var(--t3);letter-spacing:.1em}
+.lc-completion{font-family:var(--head);font-weight:900;font-size:22px}
+.progress-bar{height:4px;background:var(--b1);border-radius:2px;overflow:hidden;margin:10px 0}
+.progress-fill{height:100%;border-radius:2px;transition:width .6s ease;background:var(--yellow)}
+.progress-fill.good{background:var(--green)}
+.progress-fill.warn{background:var(--orange)}
+.progress-fill.bad{background:var(--red)}
+.lc-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+.lc-stat{text-align:center}
+.lc-stat-val{font-family:var(--head);font-weight:700;font-size:16px}
+.lc-stat-label{font-size:9px;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
+.lc-bottom{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-top:10px;padding-top:10px;border-top:1px solid var(--b1);
+  font-size:10px;color:var(--t3);
+}
+.lc-badge{
+  padding:2px 8px;border-radius:3px;font-size:9px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;
+}
+.lc-badge.green{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.lc-badge.yellow{background:rgba(242,205,26,.15);color:var(--yellow);border:1px solid rgba(242,205,26,.3)}
+.lc-badge.orange{background:rgba(245,158,11,.15);color:var(--orange);border:1px solid rgba(245,158,11,.3)}
+.lc-badge.red{background:rgba(222,42,42,.15);color:var(--red);border:1px solid rgba(222,42,42,.3)}
+
+/* ── RUNS TABLE ── */
+.table-wrap{background:var(--s2);border:1px solid var(--b1);border-radius:8px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+thead th{
+  padding:10px 14px;text-align:left;font-size:9px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--t3);font-weight:600;
+  border-bottom:1px solid var(--b1);background:var(--s3);
+}
+tbody td{
+  padding:10px 14px;border-bottom:1px solid var(--b1);
+  font-size:11px;color:var(--t2);vertical-align:middle;
+}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--s3);color:var(--text)}
+.td-mono{font-family:var(--mono)}
+.status-badge{
+  padding:2px 8px;border-radius:3px;font-size:9px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;
+}
+.status-badge.submitted{background:rgba(33,60,226,.2);color:#7b93ff;border:1px solid rgba(33,60,226,.4)}
+.status-badge.issued{background:rgba(242,205,26,.15);color:var(--yellow);border:1px solid rgba(242,205,26,.3)}
+.status-badge.progress{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+
+/* ── HOURLY CHART ── */
+.chart-wrap{background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:16px}
+.chart-title{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--t3);margin-bottom:14px}
+.bar-chart{display:flex;align-items:flex-end;gap:6px;height:100px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}
+.bar-fill-wrap{flex:1;display:flex;align-items:flex-end;width:100%}
+.bar-fill{width:100%;background:var(--yellow);border-radius:2px 2px 0 0;opacity:.8;transition:height .4s ease;min-height:2px}
+.bar-fill.l1{background:var(--yellow)}
+.bar-fill.l2{background:var(--blue)}
+.bar-fill.l3{background:var(--green)}
+.bar-label{font-size:9px;color:var(--t3)}
+.chart-legend{display:flex;gap:16px;margin-top:12px;padding-top:10px;border-top:1px solid var(--b1)}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--t2)}
+.legend-dot{width:8px;height:8px;border-radius:50%}
+
+/* ── DEFECT TABLE ── */
+.defect-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;
+}
+.defect-card{
+  background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:14px;
+}
+.dc-code{font-family:var(--head);font-weight:700;font-size:12px;color:var(--yellow);margin-bottom:4px}
+.dc-issue{font-size:11px;color:var(--text);margin-bottom:6px}
+.dc-meta{display:flex;justify-content:space-between;font-size:10px;color:var(--t3)}
+.dc-count{font-family:var(--head);font-weight:700;font-size:20px;color:var(--red)}
+.training-flag{
+  display:inline-block;padding:1px 6px;border-radius:3px;
+  font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  background:rgba(222,42,42,.15);color:var(--red);border:1px solid rgba(222,42,42,.3);
+  margin-left:6px;
+}
+
+/* ── FPY TABLE ── */
+.fpy-row{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 14px;border-bottom:1px solid var(--b1);
+}
+.fpy-row:last-child{border-bottom:none}
+.fpy-line{font-family:var(--head);font-weight:700;font-size:12px;color:var(--yellow);width:40px;flex-shrink:0}
+.fpy-product{font-size:11px;color:var(--t2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fpy-bar{flex:2;height:6px;background:var(--b1);border-radius:3px;overflow:hidden}
+.fpy-fill{height:100%;border-radius:3px;transition:width .5s ease}
+.fpy-pct{font-family:var(--head);font-weight:700;font-size:13px;width:48px;text-align:right;flex-shrink:0}
+
+/* ── EMPTY STATE ── */
+.empty{
+  padding:40px;text-align:center;color:var(--t3);
+  font-size:11px;letter-spacing:.1em;
+}
+.empty-icon{font-size:32px;margin-bottom:12px;display:block}
+
+/* ── LOADING ── */
+.loading{
+  display:flex;align-items:center;justify-content:center;
+  padding:60px;color:var(--t3);gap:10px;
+}
+.spinner{
+  width:16px;height:16px;border:2px solid var(--b2);
+  border-top-color:var(--yellow);border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <div class="login-mark">Legend of <span>Toys</span></div>
+  <div class="login-title">Production</div>
+  <div class="login-sub">Dashboard & Reporting</div>
+  <div class="login-form">
+    <div class="login-field"><input type="email" id="l_email" placeholder="Email address" autocomplete="email"></div>
+    <div class="login-field"><input type="password" id="l_pass" placeholder="Password" autocomplete="current-password"></div>
+    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-err" id="l_err"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="tb-logo">LOT</div>
+    <div class="tb-sep"></div>
+    <div class="tb-title">Production Floor</div>
+    <div class="tb-right">
+      <div class="refresh-indicator" id="refreshDot" title="Live — refreshes every 30s"></div>
+      <div class="tb-date" id="tbDate"></div>
+      <div class="tb-user" id="tbUser"></div>
+      <div class="tb-logout" onclick="doLogout()">Logout</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="exec" onclick="switchTab('exec')">Executive</div>
+    <div class="tab" data-tab="lines" onclick="switchTab('lines')">Lines</div>
+    <div class="tab" data-tab="qc" onclick="switchTab('qc')">QC</div>
+    <div class="tab" data-tab="runs" onclick="switchTab('runs')">Runs</div>
+  </div>
+
+  <div class="datebar">
+    <span class="date-label">Date</span>
+    <input type="date" class="date-input" id="dateFrom" onchange="onDateChange()">
+    <span class="date-label" id="dateToLabel" style="display:none">to</span>
+    <input type="date" class="date-input" id="dateTo" style="display:none" onchange="onDateChange()">
+    <button class="date-btn" onclick="setToday()">Today</button>
+    <button class="date-btn" onclick="setWeek()">This Week</button>
+    <button class="date-btn" onclick="setMonth()">This Month</button>
+    <span class="last-refresh" id="lastRefresh">—</span>
+  </div>
+
+  <!-- EXECUTIVE TAB -->
+  <div id="tab-exec" class="content">
+
+    <div>
+      <div class="sec-label">Today at a Glance</div>
+      <div class="cards" id="execCards">
+        <div class="loading"><div class="spinner"></div> Loading...</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">Hourly Output — Today</div>
+      <div class="chart-wrap">
+        <div class="chart-title">QC Pass units per hour by line</div>
+        <div class="bar-chart" id="hourlyChart">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div>L1</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>L2</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>L3</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">Open Production Runs</div>
+      <div class="table-wrap" id="execRunsTable">
+        <div class="loading"><div class="spinner"></div> Loading...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- LINES TAB -->
+  <div id="tab-lines" class="content" style="display:none">
+    <div>
+      <div class="sec-label">Line Performance</div>
+      <div class="line-cards" id="lineCards">
+        <div class="loading"><div class="spinner"></div> Loading...</div>
+      </div>
+    </div>
+    <div>
+      <div class="sec-label">Operator Output</div>
+      <div class="table-wrap" id="operatorTable">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QC TAB -->
+  <div id="tab-qc" class="content" style="display:none">
+    <div>
+      <div class="sec-label">First Pass Yield by Line</div>
+      <div class="table-wrap" id="fpyTable">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="sec-label">Top Defects</div>
+      <div class="defect-grid" id="defectGrid">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="sec-label">Repeat Failures</div>
+      <div class="table-wrap" id="repeatTable">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RUNS TAB -->
+  <div id="tab-runs" class="content" style="display:none">
+    <div>
+      <div class="sec-label">Plan vs Actual</div>
+      <div class="table-wrap" id="pvaTable">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────
+const API     = 'https://lotopsproxy.afshaan.workers.dev';
+const REFRESH = 30000; // 30 seconds
+
+// ── STATE ────────────────────────────────────────────────────
+let token     = null;
+let userRole  = null;
+let userName  = null;
+let activeTab = 'exec';
+let refreshTimer = null;
+let isRefreshing = false;
+
+// ── DATE HELPERS ─────────────────────────────────────────────
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function getDateFrom() { return document.getElementById('dateFrom').value || todayStr(); }
+function getDateTo()   { return document.getElementById('dateTo').value   || todayStr(); }
+
+function setToday() {
+  const t = todayStr();
+  document.getElementById('dateFrom').value = t;
+  document.getElementById('dateTo').value   = t;
+  document.getElementById('dateToLabel').style.display = 'none';
+  document.getElementById('dateTo').style.display      = 'none';
+  onDateChange();
+}
+function setWeek() {
+  const now  = new Date();
+  const day  = now.getDay() || 7;
+  const mon  = new Date(now); mon.setDate(now.getDate() - day + 1);
+  document.getElementById('dateFrom').value = mon.toISOString().split('T')[0];
+  document.getElementById('dateTo').value   = todayStr();
+  document.getElementById('dateToLabel').style.display = '';
+  document.getElementById('dateTo').style.display      = '';
+  onDateChange();
+}
+function setMonth() {
+  const now  = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  document.getElementById('dateFrom').value = from.toISOString().split('T')[0];
+  document.getElementById('dateTo').value   = todayStr();
+  document.getElementById('dateToLabel').style.display = '';
+  document.getElementById('dateTo').style.display      = '';
+  onDateChange();
+}
+function onDateChange() { loadTab(activeTab); }
+
+// ── API HELPER ───────────────────────────────────────────────
+async function api(action, params = {}) {
+  const qs = new URLSearchParams({ action, ...params }).toString();
+  const res = await fetch(`${API}?${qs}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  if (res.status === 401) { doLogout(); throw new Error('Session expired'); }
+  return res.json();
+}
+
+// ── LOGIN ────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('login').style.display !== 'none') doLogin();
+});
+
+async function doLogin() {
+  const email = document.getElementById('l_email').value.trim();
+  const pass  = document.getElementById('l_pass').value;
+  const errEl = document.getElementById('l_err');
+  if (!email || !pass) { errEl.textContent = 'Email and password required'; return; }
+  errEl.textContent = '';
+  const btn = document.querySelector('.login-btn');
+  btn.textContent = 'Signing in...'; btn.disabled = true;
+  try {
+    const res = await fetch(`${API}?action=login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pass }),
+    });
+    const data = await res.json();
+    if (!data.ok) { errEl.textContent = data.error || 'Invalid credentials'; return; }
+    token    = data.data.access_token;
+    userRole = data.data.role;
+    userName = data.data.full_name;
+    onLoggedIn();
+  } catch(e) {
+    errEl.textContent = 'Connection error';
+  } finally {
+    btn.textContent = 'Sign In'; btn.disabled = false;
+  }
+}
+
+function onLoggedIn() {
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+  document.getElementById('tbUser').textContent = userName || userRole;
+
+  const d = document.getElementById('dateFrom');
+  const t = todayStr();
+  d.value = t;
+  document.getElementById('dateTo').value = t;
+
+  updateClock();
+  setInterval(updateClock, 60000);
+
+  startRefresh();
+}
+
+function doLogout() {
+  token = null; userRole = null; userName = null;
+  clearInterval(refreshTimer);
+  document.getElementById('app').classList.remove('show');
+  document.getElementById('login').style.display = 'flex';
+  document.getElementById('l_pass').value = '';
+}
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('tbDate').textContent =
+    now.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' }) + ' · ' +
+    now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true });
+}
+
+// ── TABS ─────────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  ['exec','lines','qc','runs'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
+  });
+  const from = getDateFrom(), to = getDateTo();
+  const isRange = from !== to;
+  document.getElementById('dateToLabel').style.display = isRange || tab === 'qc' || tab === 'runs' ? '' : 'none';
+  document.getElementById('dateTo').style.display      = isRange || tab === 'qc' || tab === 'runs' ? '' : 'none';
+  loadTab(tab);
+}
+
+// ── REFRESH LOOP ─────────────────────────────────────────────
+function startRefresh() {
+  loadTab(activeTab);
+  refreshTimer = setInterval(() => {
+    if (!isRefreshing) loadTab(activeTab);
+  }, REFRESH);
+}
+
+async function loadTab(tab) {
+  if (isRefreshing) return;
+  isRefreshing = true;
+  document.getElementById('refreshDot').className = 'refresh-indicator stale';
+  try {
+    const from = getDateFrom(), to = getDateTo();
+    if (tab === 'exec')  await loadExec(from);
+    if (tab === 'lines') await loadLines(from);
+    if (tab === 'qc')    await loadQC(from, to);
+    if (tab === 'runs')  await loadRuns(from, to);
+    document.getElementById('lastRefresh').textContent =
+      'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
+  } catch(e) {
+    console.error('Load error:', e);
+  } finally {
+    isRefreshing = false;
+    document.getElementById('refreshDot').className = 'refresh-indicator';
+  }
+}
+
+// ── EXECUTIVE VIEW ───────────────────────────────────────────
+async function loadExec(date) {
+  const data = await api('getProductionDashboard', { date });
+  if (!data.ok) return;
+  const s = data.data.summary;
+  const runs = data.data.open_runs || [];
+  const hourly = data.data.hourly_chart || [];
+  renderExecCards(s);
+  renderHourlyChart(hourly);
+  renderExecRuns(runs);
+}
+
+function renderExecCards(s) {
+  const passRate = s.today_pass_rate != null ? s.today_pass_rate + '%' : '—';
+  const prClass  = s.today_pass_rate >= 95 ? 'green' : s.today_pass_rate >= 85 ? 'yellow' : s.today_pass_rate != null ? 'red' : '';
+  document.getElementById('execCards').innerHTML = `
+    <div class="card hi">
+      <div class="card-label">QC Pass — Today</div>
+      <div class="card-val yellow">${fmt(s.today_qc_pass)}</div>
+      <div class="card-sub">${fmt(s.today_inw)} inwarded</div>
+    </div>
+    <div class="card ${s.today_qc_fail > 0 ? 'bad' : ''}">
+      <div class="card-label">QC Fail — Today</div>
+      <div class="card-val ${s.today_qc_fail > 0 ? 'red' : ''}">${fmt(s.today_qc_fail)}</div>
+      <div class="card-sub">&nbsp;</div>
+    </div>
+    <div class="card ${s.today_pass_rate >= 95 ? 'ok' : s.today_pass_rate >= 85 ? 'warn' : s.today_pass_rate != null ? 'bad' : ''}">
+      <div class="card-label">Pass Rate</div>
+      <div class="card-val ${prClass}">${passRate}</div>
+      <div class="card-sub">First-pass yield</div>
+    </div>
+    <div class="card ok">
+      <div class="card-label">Dispatched — Today</div>
+      <div class="card-val green">${fmt(s.today_dispatched)}</div>
+      <div class="card-sub">${fmt(s.today_rtr)} retail · ${fmt(s.today_rte)} ecom</div>
+    </div>
+    <div class="card">
+      <div class="card-label">WTD Pass</div>
+      <div class="card-val">${fmt(s.wtd_pass)}</div>
+      <div class="card-sub">This week</div>
+    </div>
+    <div class="card">
+      <div class="card-label">MTD Pass</div>
+      <div class="card-val">${fmt(s.mtd_pass)}</div>
+      <div class="card-sub">This month</div>
+    </div>
+    <div class="card blue">
+      <div class="card-label">Dispatch Stock</div>
+      <div class="card-val">${fmt(s.dispatch_stock)}</div>
+      <div class="card-sub">Units at RTD</div>
+    </div>
+    <div class="card ${s.repair_queue > 50 ? 'warn' : ''}">
+      <div class="card-label">Repair Queue</div>
+      <div class="card-val ${s.repair_queue > 50 ? 'yellow' : ''}">${fmt(s.repair_queue)}</div>
+      <div class="card-sub">In workshop</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Open Runs</div>
+      <div class="card-val">${fmt(s.open_runs)}</div>
+      <div class="card-sub">${fmt(s.downtime_mins)} mins downtime</div>
+    </div>
+    ${s.open_findings > 0 ? `
+    <div class="card bad">
+      <div class="card-label">Open Findings</div>
+      <div class="card-val red">${fmt(s.open_findings)}</div>
+      <div class="card-sub">Audit findings</div>
+    </div>` : ''}
+  `;
+}
+
+function renderHourlyChart(rows) {
+  const el = document.getElementById('hourlyChart');
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty" style="width:100%"><span class="empty-icon">📊</span>No scan data for selected date</div>';
+    return;
+  }
+  // Group by hour, sum by line
+  const hours = {};
+  const lines = new Set();
+  rows.forEach(r => {
+    const h = r.hour;
+    if (!hours[h]) hours[h] = {};
+    lines.add(r.line);
+    hours[h][r.line] = (hours[h][r.line] || 0) + r.unit_count;
+  });
+  const maxVal = Math.max(...Object.values(hours).map(h => Object.values(h).reduce((a,b) => a+b, 0)), 1);
+  const lineArr = [...lines].sort();
+  const lineColors = { L1: 'l1', L2: 'l2', L3: 'l3' };
+
+  // Show hours 9-18 (shift hours)
+  const shiftHours = Array.from({length:10}, (_, i) => i+9);
+  el.innerHTML = shiftHours.map(h => {
+    const data = hours[h] || {};
+    const total = Object.values(data).reduce((a,b) => a+b, 0);
+    const heightPct = Math.round((total / maxVal) * 100);
+    return `
+      <div class="bar-col">
+        <div class="bar-fill-wrap">
+          <div class="bar-fill l1" style="height:${heightPct}%;width:100%;" title="${h}:00 — ${total} units"></div>
+        </div>
+        <div class="bar-label">${h}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderExecRuns(runs) {
+  const el = document.getElementById('execRunsTable');
+  if (!runs.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">🏭</span>No active production runs</div>';
+    return;
+  }
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Run</th><th>Product</th><th>Line</th><th>Date</th>
+          <th>Target</th><th>Retail</th><th>Ecom</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${runs.map(r => `
+          <tr>
+            <td class="td-mono" style="color:var(--yellow)">${r.run_no}</td>
+            <td style="color:var(--text)">${r.product}</td>
+            <td>${r.line_no || '—'}</td>
+            <td class="td-mono">${r.run_date}</td>
+            <td class="td-mono" style="color:var(--text)">${fmt(r.target_qty)}</td>
+            <td class="td-mono">${fmt(r.target_retail)}</td>
+            <td class="td-mono">${fmt(r.target_ecom)}</td>
+            <td>${statusBadge(r.status)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── LINES VIEW ───────────────────────────────────────────────
+async function loadLines(date) {
+  const [lineData, execData] = await Promise.all([
+    api('getLineView', { date }),
+    api('getLineView', { date }),
+  ]);
+  if (!lineData.ok) return;
+  renderLineCards(lineData.data.lines || []);
+  renderOperatorTable(lineData.data.operator_stats || []);
+}
+
+function renderLineCards(lines) {
+  const el = document.getElementById('lineCards');
+  if (!lines.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">🏭</span>No line data for selected date</div>';
+    return;
+  }
+  el.innerHTML = lines.map(l => {
+    const pct = l.completion_pct || 0;
+    const passRate = l.pass_rate_pct || 0;
+    const fillClass = pct >= 90 ? 'good' : pct >= 60 ? '' : pct >= 30 ? 'warn' : 'bad';
+    const badge = pct >= 90 ? 'green' : pct >= 60 ? 'yellow' : pct >= 30 ? 'orange' : 'red';
+    return `
+      <div class="line-card">
+        <div class="lc-header">
+          <div>
+            <div class="lc-name">${l.line || '—'}</div>
+            <div class="lc-product">${l.product || 'No run assigned'}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="lc-completion" style="color:${pct>=90?'var(--green)':pct>=60?'var(--yellow)':pct>=30?'var(--orange)':'var(--red)'}">${pct}%</div>
+            <div class="lc-run">${l.run_no || ''}</div>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill ${fillClass}" style="width:${Math.min(pct,100)}%"></div>
+        </div>
+        <div class="lc-stats">
+          <div class="lc-stat">
+            <div class="lc-stat-val" style="color:var(--text)">${fmt(l.inw_count)}</div>
+            <div class="lc-stat-label">INW</div>
+          </div>
+          <div class="lc-stat">
+            <div class="lc-stat-val" style="color:var(--green)">${fmt(l.qc_pass_count)}</div>
+            <div class="lc-stat-label">QC Pass</div>
+          </div>
+          <div class="lc-stat">
+            <div class="lc-stat-val" style="color:var(--red)">${fmt(l.qc_fail_count)}</div>
+            <div class="lc-stat-label">QC Fail</div>
+          </div>
+          <div class="lc-stat">
+            <div class="lc-stat-val" style="color:var(--yellow)">${fmt(l.pkg_count)}</div>
+            <div class="lc-stat-label">PKG</div>
+          </div>
+          <div class="lc-stat">
+            <div class="lc-stat-val" style="color:#a78bfa">${fmt(l.rtr_count)}</div>
+            <div class="lc-stat-label">RTR</div>
+          </div>
+          <div class="lc-stat">
+            <div class="lc-stat-val" style="color:#38bdf8">${fmt(l.rte_count)}</div>
+            <div class="lc-stat-label">RTE</div>
+          </div>
+        </div>
+        <div class="lc-bottom">
+          <span>${fmt(l.active_operators)} operators · ${fmt(l.downtime_mins)}m downtime</span>
+          <span class="lc-badge ${badge}">${pct}% done</span>
+        </div>
+        <div class="lc-bottom" style="border-top:none;padding-top:4px;margin-top:0">
+          <span>Target: ${fmt(l.target_qty)} · Pass rate: ${passRate}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderOperatorTable(ops) {
+  const el = document.getElementById('operatorTable');
+  if (!ops.length) {
+    el.innerHTML = '<div class="empty">No operator data</div>';
+    return;
+  }
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Operator</th><th>Line</th><th>INW</th>
+          <th>QC Pass</th><th>QC Fail</th><th>Pass Rate</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${ops.map(o => `
+          <tr>
+            <td style="color:var(--text)">${o.operator_name || '—'}</td>
+            <td style="color:var(--yellow)">${o.line || '—'}</td>
+            <td class="td-mono">${fmt(o.inw_count)}</td>
+            <td class="td-mono" style="color:var(--green)">${fmt(o.qc_pass_count)}</td>
+            <td class="td-mono" style="color:var(--red)">${fmt(o.qc_fail_count)}</td>
+            <td class="td-mono" style="color:${(o.pass_rate_pct||0)>=95?'var(--green)':(o.pass_rate_pct||0)>=85?'var(--yellow)':'var(--red)'}">${o.pass_rate_pct != null ? o.pass_rate_pct + '%' : '—'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── QC VIEW ──────────────────────────────────────────────────
+async function loadQC(from, to) {
+  const data = await api('getQCView', { from, to });
+  if (!data.ok) return;
+  renderFPY(data.data.fpy || []);
+  renderDefects(data.data.heatmap || []);
+  renderRepeatDefects(data.data.repeat_defects || []);
+}
+
+function renderFPY(rows) {
+  const el = document.getElementById('fpyTable');
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty">No QC data for selected period</div>';
+    return;
+  }
+  el.innerHTML = rows.map(r => {
+    const pct = r.fpy_pct || 0;
+    const color = pct >= 95 ? 'var(--green)' : pct >= 85 ? 'var(--yellow)' : 'var(--red)';
+    return `
+      <div class="fpy-row">
+        <div class="fpy-line">${r.line || '—'}</div>
+        <div class="fpy-product">${r.product || '—'} · ${r.scan_date}</div>
+        <div class="fpy-bar"><div class="fpy-fill" style="width:${pct}%;background:${color}"></div></div>
+        <div class="fpy-pct" style="color:${color}">${pct}%</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderDefects(rows) {
+  const el = document.getElementById('defectGrid');
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty" style="grid-column:1/-1"><span class="empty-icon">✅</span>No defects logged</div>';
+    return;
+  }
+  // Aggregate by defect code
+  const agg = {};
+  rows.forEach(r => {
+    if (!agg[r.defect_code]) {
+      agg[r.defect_code] = {
+        code: r.defect_code, issue: r.issue, category: r.category,
+        severity: r.severity, count: 0, training: false
+      };
+    }
+    agg[r.defect_code].count += r.defect_count;
+    if (r.training_flag) agg[r.defect_code].training = true;
+  });
+  const sorted = Object.values(agg).sort((a,b) => b.count - a.count).slice(0, 20);
+  el.innerHTML = sorted.map(d => `
+    <div class="defect-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div class="dc-code">${d.code}${d.training ? '<span class="training-flag">Flag</span>' : ''}</div>
+        <div class="dc-count">${d.count}</div>
+      </div>
+      <div class="dc-issue">${d.issue || '—'}</div>
+      <div class="dc-meta">
+        <span>${d.category || '—'}</span>
+        <span>${d.severity || '—'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderRepeatDefects(rows) {
+  const el = document.getElementById('repeatTable');
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty">No repeat failures</div>';
+    return;
+  }
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr><th>UPC</th><th>Product</th><th>Total Defects</th><th>Unique Codes</th><th>Codes</th></tr>
+      </thead>
+      <tbody>
+        ${rows.slice(0,20).map(r => `
+          <tr>
+            <td class="td-mono" style="font-size:10px;color:var(--t2)">${r.upc}</td>
+            <td>${r.product || '—'}</td>
+            <td class="td-mono" style="color:var(--red)">${r.total_defects}</td>
+            <td class="td-mono">${r.unique_defect_codes}</td>
+            <td style="font-size:10px;color:var(--t3)">${(r.defect_codes||[]).join(', ')}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── RUNS / PLAN VS ACTUAL ────────────────────────────────────
+async function loadRuns(from, to) {
+  const data = await api('getPlanVsActual', { from, to });
+  if (!data.ok) return;
+  renderPVA(data.data || []);
+}
+
+function renderPVA(rows) {
+  const el = document.getElementById('pvaTable');
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">📋</span>No production runs in selected period</div>';
+    return;
+  }
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Run</th><th>Product</th><th>Line</th>
+          <th>Target</th><th>QC Pass</th><th>RTR</th><th>RTE</th>
+          <th>Dispatched</th><th>Done%</th><th>Gap</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => {
+          const pct = r.completion_pct || 0;
+          const pctColor = pct >= 90 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : pct > 0 ? 'var(--orange)' : 'var(--t3)';
+          return `
+            <tr>
+              <td class="td-mono" style="font-size:10px">${r.run_date}</td>
+              <td class="td-mono" style="color:var(--yellow)">${r.run_no}</td>
+              <td style="color:var(--text)">${r.product}</td>
+              <td>${r.line_no || '—'}</td>
+              <td class="td-mono">${fmt(r.target_qty)}</td>
+              <td class="td-mono" style="color:var(--green)">${fmt(r.actual_qc_pass)}</td>
+              <td class="td-mono" style="color:#a78bfa">${fmt(r.actual_rtr)}</td>
+              <td class="td-mono" style="color:#38bdf8">${fmt(r.actual_rte)}</td>
+              <td class="td-mono" style="color:var(--text)">${fmt(r.total_dispatched)}</td>
+              <td class="td-mono" style="color:${pctColor};font-weight:700">${pct}%</td>
+              <td class="td-mono" style="color:${r.gap>0?'var(--red)':'var(--green)'}">${r.gap > 0 ? '-'+fmt(r.gap) : '✓'}</td>
+              <td>${statusBadge(r.run_status)}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── HELPERS ──────────────────────────────────────────────────
+function fmt(n) { return n != null ? Number(n).toLocaleString('en-IN') : '0'; }
+
+function statusBadge(s) {
+  if (!s) return '—';
+  const map = {
+    'Submitted':   'submitted',
+    'Issued':      'issued',
+    'In Progress': 'progress',
+  };
+  const cls = map[s] || '';
+  return `<span class="status-badge ${cls}">${s}</span>`;
+}
+
+// ── INIT ─────────────────────────────────────────────────────
+document.getElementById('dateFrom').value = todayStr();
+document.getElementById('dateTo').value   = todayStr();
+</script>
+</body>
+</html>
