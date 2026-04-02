@@ -370,7 +370,14 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
 /* ── PRINT STYLES ── */
 @media screen {
-  #printSheet { display: none !important; }
+  #printSheet {
+    position: fixed;
+    left: -99999px;
+    top: 0;
+    width: 297mm;
+    background: #fff;
+    pointer-events: none;
+  }
 }
 @media print {
   body > * { display: none !important; }
@@ -605,8 +612,8 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
   </div>
 
-  <!-- PRINT SHEET — hidden in app, revealed only on print -->
-  <div id="printSheet" style="display:none">
+  <!-- PRINT SHEET — rendered off-screen, revealed only on print -->
+  <div id="printSheet">
     <div id="printHeader" class="print-header"></div>
     <div id="printGrid" class="print-grid"></div>
   </div>
@@ -1323,10 +1330,6 @@ async function generateBatch() {
 
 // ── Print ─────────────────────────────────────────────
 async function printBatch(batchId) {
-  // Show loading state
-  document.getElementById('printHeader').textContent = 'Loading batch ' + batchId + '...';
-  document.getElementById('printGrid').innerHTML = '';
-
   // Fetch batch with all UPC rows
   const res = await fetch(`${API}?action=getUpcBatch&batch_id=${encodeURIComponent(batchId)}&include_rows=true`, {
     headers: { 'Authorization': `Bearer ${token}` }
@@ -1338,10 +1341,20 @@ async function printBatch(batchId) {
   }
 
   const { batch, rows } = data.data;
+
+  // Clear existing print content
+  document.getElementById('printGrid').innerHTML = '';
+  document.getElementById('printHeader').innerHTML = '';
+
+  // Render stickers — canvas renders correctly because #printSheet is off-screen not hidden
   renderPrintSheet(batch, rows);
 
-  // Trigger browser print
-  setTimeout(() => window.print(), 300);
+  // Wait for QRCode.js to finish painting all canvases
+  // ~5ms per sticker, minimum 800ms
+  const waitMs = Math.max(800, rows.length * 5);
+  await new Promise(resolve => setTimeout(resolve, waitMs));
+
+  window.print();
 }
 
 function renderPrintSheet(batch, rows) {
