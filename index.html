@@ -402,27 +402,31 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 1.5mm;
+    width: 15mm;
+    height: 15mm;
+    padding: 1mm;
     border: 0.3mm solid #ddd;
-    border-radius: 1mm;
+    border-radius: 0.5mm;
     page-break-inside: avoid;
     background: #fff;
+    overflow: hidden;
   }
 
   .print-sticker canvas, .print-sticker img {
-    width: var(--qr-size, 18mm) !important;
-    height: var(--qr-size, 18mm) !important;
+    width: 10mm !important;
+    height: 10mm !important;
   }
 
   .print-sticker-code {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 6pt;
+    font-size: 5pt;
     font-weight: 700;
     color: #000;
-    margin-top: 1mm;
-    letter-spacing: .03em;
+    margin-top: 0.8mm;
+    letter-spacing: .02em;
     text-align: center;
-    line-height: 1.2;
+    line-height: 1.1;
+    white-space: nowrap;
   }
 }
 </style>
@@ -1307,7 +1311,8 @@ async function generateBatch() {
   }
 
   const b = data.data;
-  statusEl.textContent = `✓ Batch ${b.batch_id} generated — ${b.quantity} stickers · ${b.product_code}-${b.seq_from} to ${b.product_code}-${b.seq_to}`;
+  const sheetsNeeded = Math.ceil(b.quantity / 368);
+  statusEl.textContent = `✓ Batch ${b.batch_id} generated — ${b.quantity} stickers · ${b.product_code}-${b.seq_from} to ${b.product_code}-${b.seq_to} · ${sheetsNeeded} A3 sheet${sheetsNeeded !== 1 ? 's' : ''}`;
   statusEl.className = 'upc-status ok';
 
   currentBatchId = b.batch_id;
@@ -1350,7 +1355,8 @@ function renderPrintSheet(batch, rows) {
   // QR grid
   const grid = document.getElementById('printGrid');
   grid.innerHTML = '';
-  grid.style.setProperty('--cols', '8'); // 8 columns per row — adjust based on sticker size discussion
+  const STICKERS_PER_SHEET = 368; // 16 cols × 23 rows on A3 (15mm stickers, 2mm gap, 10mm margins)
+  grid.style.setProperty('--cols', '16');
 
   rows.forEach(row => {
     const displayCode = row.product_code && row.product_seq
@@ -1371,11 +1377,12 @@ function renderPrintSheet(batch, rows) {
     grid.appendChild(sticker);
 
     // Generate QR code (encodes the LOT- UPC ID)
+    // 80px renders cleanly and scales down to 10mm in print CSS
     try {
       new QRCode(qrDiv, {
         text:         row.upc_id,
-        width:        68,
-        height:       68,
+        width:        80,
+        height:       80,
         colorDark:    '#000000',
         colorLight:   '#ffffff',
         correctLevel: QRCode.CorrectLevel.M,
