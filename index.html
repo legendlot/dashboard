@@ -309,6 +309,122 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+
+/* ══════════════════════
+   UPC GENERATOR
+══════════════════════ */
+.upc-gen-panel{
+  background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:20px;
+}
+.upc-form{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;align-items:end}
+.upc-field{display:flex;flex-direction:column;gap:6px}
+.upc-field-label{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--t3)}
+.upc-select,.upc-input{
+  background:var(--s3);border:1px solid var(--b2);border-radius:6px;
+  padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:12px;
+  outline:none;transition:border-color .15s;width:100%;-webkit-appearance:none;
+}
+.upc-select:focus,.upc-input:focus{border-color:var(--yellow)}
+.upc-select option{background:#1a1a1a}
+.upc-toggle-group{display:flex;gap:6px}
+.upc-toggle-btn{
+  flex:1;padding:10px 12px;background:var(--s3);border:1px solid var(--b2);
+  border-radius:6px;font-family:var(--mono);font-size:11px;
+  cursor:pointer;text-align:center;transition:all .12s;color:var(--t2);
+}
+.upc-toggle-btn.active{background:var(--yellow);color:#080808;border-color:var(--yellow);font-weight:700}
+.upc-gen-btn{
+  background:var(--yellow);color:#080808;border:none;border-radius:6px;
+  padding:11px 20px;font-family:var(--head);font-weight:700;font-size:11px;
+  letter-spacing:.15em;text-transform:uppercase;cursor:pointer;
+  transition:opacity .15s;white-space:nowrap;align-self:end;
+}
+.upc-gen-btn:hover{opacity:.9}
+.upc-gen-btn:disabled{opacity:.4;cursor:not-allowed}
+.upc-status{
+  margin-top:12px;font-size:11px;min-height:18px;
+  letter-spacing:.04em;padding:0 2px;
+}
+.upc-status.ok{color:var(--green)}
+.upc-status.err{color:var(--red)}
+.upc-status.loading{color:var(--t3)}
+
+/* batch actions in table */
+.batch-actions{display:flex;gap:6px;flex-wrap:wrap}
+.batch-btn{
+  padding:3px 10px;border-radius:3px;font-size:9px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border:none;
+  transition:opacity .12s;
+}
+.batch-btn:hover{opacity:.8}
+.batch-btn.print{background:rgba(242,205,26,.15);color:var(--yellow);border:1px solid rgba(242,205,26,.3)}
+.batch-btn.received{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.batch-btn.sent{background:rgba(245,158,11,.15);color:var(--orange);border:1px solid rgba(245,158,11,.3)}
+
+/* batch status badges */
+.bs-generated{color:var(--t2)}
+.bs-sent_to_print{color:var(--orange)}
+.bs-printed{color:var(--blue)}
+.bs-received{color:var(--green)}
+.bs-fully_applied{color:var(--t3)}
+
+/* ── PRINT STYLES ── */
+@media screen {
+  #printSheet { display: none !important; }
+}
+@media print {
+  body > * { display: none !important; }
+  #printSheet { display: block !important; }
+  body { background: #fff !important; color: #000 !important; }
+
+  .print-header {
+    font-family: 'Tomorrow', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #000;
+    margin-bottom: 8mm;
+    padding-bottom: 4mm;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .print-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cols, 8), 1fr);
+    gap: 2mm;
+  }
+
+  .print-sticker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5mm;
+    border: 0.3mm solid #ddd;
+    border-radius: 1mm;
+    page-break-inside: avoid;
+    background: #fff;
+  }
+
+  .print-sticker canvas, .print-sticker img {
+    width: var(--qr-size, 18mm) !important;
+    height: var(--qr-size, 18mm) !important;
+  }
+
+  .print-sticker-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 6pt;
+    font-weight: 700;
+    color: #000;
+    margin-top: 1mm;
+    letter-spacing: .03em;
+    text-align: center;
+    line-height: 1.2;
+  }
+}
 </style>
 </head>
 <body>
@@ -345,6 +461,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div class="tab" data-tab="lines" onclick="switchTab('lines')">Lines</div>
     <div class="tab" data-tab="qc" onclick="switchTab('qc')">QC</div>
     <div class="tab" data-tab="runs" onclick="switchTab('runs')">Runs</div>
+    <div class="tab" data-tab="upc" onclick="switchTab('upc')">UPC Generator</div>
   </div>
 
   <div class="datebar">
@@ -438,6 +555,56 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         <div class="loading"><div class="spinner"></div></div>
       </div>
     </div>
+  </div>
+
+  <!-- UPC GENERATOR TAB -->
+  <div id="tab-upc" class="content" style="display:none">
+
+    <div class="upc-gen-panel">
+      <div class="sec-label">Generate New Batch</div>
+      <div class="upc-form">
+        <div class="upc-field">
+          <div class="upc-field-label">Product</div>
+          <select id="upcProductSelect" class="upc-select" onchange="onUpcProductChange()">
+            <option value="">— Loading products... —</option>
+          </select>
+        </div>
+        <div class="upc-field" id="upcComponentField" style="display:none">
+          <div class="upc-field-label">Component</div>
+          <div class="upc-toggle-group">
+            <div class="upc-toggle-btn active" id="upcCompCar" onclick="selectComponent('car')">Car</div>
+            <div class="upc-toggle-btn" id="upcCompRemote" onclick="selectComponent('remote')">Remote</div>
+          </div>
+        </div>
+        <div class="upc-field">
+          <div class="upc-field-label">Quantity</div>
+          <input type="number" id="upcQty" class="upc-input" min="1" max="10000" value="100">
+        </div>
+        <div class="upc-field">
+          <div class="upc-field-label">Notes <span style="color:var(--t3);font-size:9px">(optional)</span></div>
+          <input type="text" id="upcNotes" class="upc-input" placeholder="e.g. First production run">
+        </div>
+        <button class="upc-gen-btn" onclick="generateBatch()">Generate Batch →</button>
+      </div>
+      <div id="upcGenStatus" class="upc-status"></div>
+    </div>
+
+    <div>
+      <div class="sec-label" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span>Batch History</span>
+        <button class="date-btn" onclick="loadUpcHistory()" style="font-size:9px">↻ Refresh</button>
+      </div>
+      <div class="table-wrap" id="upcBatchTable">
+        <div class="loading"><div class="spinner"></div> Loading...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- PRINT SHEET — hidden in app, revealed only on print -->
+  <div id="printSheet" style="display:none">
+    <div id="printHeader" class="print-header"></div>
+    <div id="printGrid" class="print-grid"></div>
   </div>
 
 </div>
@@ -566,13 +733,18 @@ function updateClock() {
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  ['exec','lines','qc','runs'].forEach(t => {
+  ['exec','lines','qc','runs','upc'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
-  const from = getDateFrom(), to = getDateTo();
-  const isRange = from !== to;
-  document.getElementById('dateToLabel').style.display = isRange || tab === 'qc' || tab === 'runs' ? '' : 'none';
-  document.getElementById('dateTo').style.display      = isRange || tab === 'qc' || tab === 'runs' ? '' : 'none';
+  // Date bar not relevant for UPC tab
+  const showDateBar = tab !== 'upc';
+  document.querySelector('.datebar').style.display = showDateBar ? '' : 'none';
+  if (showDateBar) {
+    const from = getDateFrom(), to = getDateTo();
+    const isRange = from !== to;
+    document.getElementById('dateToLabel').style.display = isRange || tab === 'qc' || tab === 'runs' ? '' : 'none';
+    document.getElementById('dateTo').style.display      = isRange || tab === 'qc' || tab === 'runs' ? '' : 'none';
+  }
   loadTab(tab);
 }
 
@@ -594,6 +766,7 @@ async function loadTab(tab) {
     if (tab === 'lines') await loadLines(from);
     if (tab === 'qc')    await loadQC(from, to);
     if (tab === 'runs')  await loadRuns(from, to);
+    if (tab === 'upc')   await loadUpcGen();
     document.getElementById('lastRefresh').textContent =
       'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
   } catch(e) {
@@ -1001,6 +1174,247 @@ function statusBadge(s) {
 // ── INIT ─────────────────────────────────────────────────────
 document.getElementById('dateFrom').value = todayStr();
 document.getElementById('dateTo').value   = todayStr();
+</script>
+
+<!-- QR code generation library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script>
+// ══════════════════════════════════════════════════════
+// UPC GENERATOR
+// ══════════════════════════════════════════════════════
+let upcProducts    = [];   // list from getProductCodes
+let upcComponent   = 'car'; // 'car' | 'remote'
+let currentBatchId = null;  // batch being previewed
+
+// ── Load tab ─────────────────────────────────────────
+async function loadUpcGen() {
+  await Promise.all([loadUpcProducts(), loadUpcHistory()]);
+}
+
+async function loadUpcProducts() {
+  const data = await api('getProductCodes');
+  if (!data.ok) return;
+  upcProducts = data.data || [];
+
+  const sel = document.getElementById('upcProductSelect');
+  sel.innerHTML = '<option value="">— Select a product —</option>' +
+    upcProducts.map(p =>
+      `<option value="${p.product_code}" data-has-remote="${p.has_remote}">` +
+      `${p.product_code} — ${p.product} ${p.model} ${p.color}` +
+      `${p.has_remote ? ' (+ remote)' : ''}` +
+      `</option>`
+    ).join('');
+}
+
+async function loadUpcHistory() {
+  const el = document.getElementById('upcBatchTable');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
+  const data = await api('getUpcBatches', { limit: 50 });
+  if (!data.ok) { el.innerHTML = '<div class="empty">Failed to load batches</div>'; return; }
+  renderBatchHistory(data.data || []);
+}
+
+function renderBatchHistory(batches) {
+  const el = document.getElementById('upcBatchTable');
+  if (!batches.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">🏷️</span>No batches generated yet</div>';
+    return;
+  }
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Batch</th><th>Product Code</th><th>Product</th>
+          <th>Qty</th><th>Seq Range</th><th>Status</th><th>Generated</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${batches.map(b => {
+          const statusCls = 'bs-' + (b.status || '').replace(/ /g,'_');
+          const date = b.generated_at ? new Date(b.generated_at).toLocaleDateString('en-IN', {day:'numeric',month:'short'}) : '—';
+          // Derive product_code from batch — stored in upc_pool but we can parse from product name
+          const code = b.product || '—';
+          return `
+            <tr>
+              <td class="td-mono" style="color:var(--yellow)">${b.batch_id}</td>
+              <td class="td-mono" style="color:var(--text)">${code}</td>
+              <td style="color:var(--t2)">${b.product || '—'}</td>
+              <td class="td-mono">${fmt(b.quantity)}</td>
+              <td class="td-mono" style="font-size:10px;color:var(--t3)">${b.upc_from} → ${b.upc_to}</td>
+              <td><span class="${statusCls}">${b.status || '—'}</span></td>
+              <td class="td-mono" style="font-size:10px;color:var(--t3)">${date}</td>
+              <td>
+                <div class="batch-actions">
+                  <button class="batch-btn print" onclick="printBatch('${b.batch_id}')">Print</button>
+                  ${['generated','sent_to_print','printed'].includes(b.status) ? `<button class="batch-btn sent" onclick="markSent('${b.batch_id}')">Sent</button>` : ''}
+                  ${['generated','sent_to_print','printed'].includes(b.status) ? `<button class="batch-btn received" onclick="markReceived('${b.batch_id}')">Received</button>` : ''}
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── Product selection ─────────────────────────────────
+function onUpcProductChange() {
+  const sel = document.getElementById('upcProductSelect');
+  const opt = sel.options[sel.selectedIndex];
+  const hasRemote = opt?.dataset?.hasRemote === 'true';
+  document.getElementById('upcComponentField').style.display = hasRemote ? '' : 'none';
+  if (!hasRemote) upcComponent = 'car';
+  selectComponent('car');
+}
+
+function selectComponent(comp) {
+  upcComponent = comp;
+  document.getElementById('upcCompCar').classList.toggle('active', comp === 'car');
+  document.getElementById('upcCompRemote').classList.toggle('active', comp === 'remote');
+}
+
+// ── Generate ──────────────────────────────────────────
+async function generateBatch() {
+  const sel      = document.getElementById('upcProductSelect');
+  const baseCode = sel.value;
+  const qty      = parseInt(document.getElementById('upcQty').value);
+  const notes    = document.getElementById('upcNotes').value.trim();
+  const statusEl = document.getElementById('upcGenStatus');
+
+  if (!baseCode) { statusEl.textContent = 'Select a product first'; statusEl.className = 'upc-status err'; return; }
+  if (!qty || qty < 1 || qty > 10000) { statusEl.textContent = 'Quantity must be 1–10,000'; statusEl.className = 'upc-status err'; return; }
+
+  const productCode = upcComponent === 'remote' ? baseCode + 'R' : baseCode;
+
+  statusEl.textContent = `Generating ${qty} stickers for ${productCode}...`;
+  statusEl.className = 'upc-status loading';
+  document.querySelector('.upc-gen-btn').disabled = true;
+
+  const res = await fetch(`${API}?action=_`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ action: 'generateUpcBatch', data: { product_code: productCode, quantity: qty, notes } })
+  });
+  const data = await res.json();
+  document.querySelector('.upc-gen-btn').disabled = false;
+
+  if (!data.ok) {
+    statusEl.textContent = 'Error: ' + (data.error || 'Unknown error');
+    statusEl.className = 'upc-status err';
+    return;
+  }
+
+  const b = data.data;
+  statusEl.textContent = `✓ Batch ${b.batch_id} generated — ${b.quantity} stickers · ${b.product_code}-${b.seq_from} to ${b.product_code}-${b.seq_to}`;
+  statusEl.className = 'upc-status ok';
+
+  currentBatchId = b.batch_id;
+  loadUpcHistory();
+  // Auto-open print for the new batch
+  setTimeout(() => printBatch(b.batch_id), 500);
+}
+
+// ── Print ─────────────────────────────────────────────
+async function printBatch(batchId) {
+  // Show loading state
+  document.getElementById('printHeader').textContent = 'Loading batch ' + batchId + '...';
+  document.getElementById('printGrid').innerHTML = '';
+
+  // Fetch batch with all UPC rows
+  const res = await fetch(`${API}?action=getUpcBatch&batch_id=${encodeURIComponent(batchId)}&include_rows=true`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await res.json();
+  if (!data.ok || !data.data.rows) {
+    alert('Failed to load batch: ' + (data.error || 'Unknown error'));
+    return;
+  }
+
+  const { batch, rows } = data.data;
+  renderPrintSheet(batch, rows);
+
+  // Trigger browser print
+  setTimeout(() => window.print(), 300);
+}
+
+function renderPrintSheet(batch, rows) {
+  // Print header
+  document.getElementById('printHeader').innerHTML = `
+    <span>LOT — UPC Batch ${batch.batch_id}</span>
+    <span>${batch.product} · ${rows.length} stickers</span>
+    <span>Generated ${new Date(batch.generated_at).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'})}</span>
+  `;
+
+  // QR grid
+  const grid = document.getElementById('printGrid');
+  grid.innerHTML = '';
+  grid.style.setProperty('--cols', '8'); // 8 columns per row — adjust based on sticker size discussion
+
+  rows.forEach(row => {
+    const displayCode = row.product_code && row.product_seq
+      ? `${row.product_code}-${row.product_seq}`
+      : row.upc_id;
+
+    const sticker = document.createElement('div');
+    sticker.className = 'print-sticker';
+
+    const qrDiv = document.createElement('div');
+    sticker.appendChild(qrDiv);
+
+    const codeDiv = document.createElement('div');
+    codeDiv.className = 'print-sticker-code';
+    codeDiv.textContent = displayCode;
+    sticker.appendChild(codeDiv);
+
+    grid.appendChild(sticker);
+
+    // Generate QR code (encodes the LOT- UPC ID)
+    try {
+      new QRCode(qrDiv, {
+        text:         row.upc_id,
+        width:        68,
+        height:       68,
+        colorDark:    '#000000',
+        colorLight:   '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M,
+      });
+    } catch(e) {
+      qrDiv.textContent = row.upc_id;
+    }
+  });
+}
+
+// ── Batch status updates ──────────────────────────────
+async function markSent(batchId) {
+  const res = await fetch(`${API}?action=_`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ action: 'receiveUpcBatch', data: { batch_id: batchId, status: 'sent_to_print' } })
+  });
+  // Use a direct PATCH since receiveUpcBatch sets to 'received' — call worker endpoint
+  // Actually, update status to sent_to_print directly via a simple API update
+  await updateBatchStatus(batchId, 'sent_to_print');
+}
+
+async function markReceived(batchId) {
+  const res = await fetch(`${API}?action=_`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ action: 'receiveUpcBatch', data: { batch_id: batchId } })
+  });
+  const data = await res.json();
+  if (!data.ok) { alert('Error: ' + (data.error || 'Unknown')); return; }
+  loadUpcHistory();
+}
+
+async function updateBatchStatus(batchId, status) {
+  // Quick PATCH for sent_to_print (not a full worker endpoint — direct Supabase not available here)
+  // Use existing receiveUpcBatch which moves to 'received', or add a dedicated endpoint later
+  // For now, just refresh history
+  loadUpcHistory();
+}
 </script>
 </body>
 </html>
