@@ -381,31 +381,40 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 }
 @media print {
   body > * { display: none !important; }
-  #printSheet { display: block !important; }
+  #printSheet {
+    display: block !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: auto !important;
+    background: #fff !important;
+    padding: 10mm !important;
+    margin: 0 !important;
+  }
   body { background: #fff !important; color: #000 !important; }
 
   .print-header {
     font-family: 'Tomorrow', sans-serif;
-    font-size: 11px;
+    font-size: 9pt;
     font-weight: 700;
-    letter-spacing: .1em;
+    letter-spacing: .08em;
     text-transform: uppercase;
     color: #000;
-    margin-bottom: 8mm;
-    padding-bottom: 4mm;
-    border-bottom: 1px solid #ccc;
-    display: flex;
+    margin-bottom: 6mm;
+    padding-bottom: 3mm;
+    border-bottom: 0.3mm solid #aaa;
+    display: flex !important;
     justify-content: space-between;
   }
 
   .print-grid {
-    display: grid;
-    grid-template-columns: repeat(var(--cols, 8), 1fr);
+    display: grid !important;
+    grid-template-columns: repeat(16, 15mm);
     gap: 2mm;
   }
 
   .print-sticker {
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -417,11 +426,13 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     page-break-inside: avoid;
     background: #fff;
     overflow: hidden;
+    box-sizing: border-box;
   }
 
-  .print-sticker canvas, .print-sticker img {
+  .print-sticker img {
     width: 10mm !important;
     height: 10mm !important;
+    display: block;
   }
 
   .print-sticker-code {
@@ -434,6 +445,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     text-align: center;
     line-height: 1.1;
     white-space: nowrap;
+    display: block !important;
   }
 }
 </style>
@@ -1353,6 +1365,18 @@ async function printBatch(batchId) {
   // ~5ms per sticker, minimum 800ms
   const waitMs = Math.max(800, rows.length * 5);
   await new Promise(resolve => setTimeout(resolve, waitMs));
+
+  // Canvas elements don't print reliably — convert every canvas to a data URL image
+  document.querySelectorAll('#printGrid canvas').forEach(canvas => {
+    try {
+      const img = document.createElement('img');
+      img.src = canvas.toDataURL('image/png');
+      canvas.parentNode.replaceChild(img, canvas);
+    } catch(e) {}
+  });
+
+  // Brief wait after img swap
+  await new Promise(resolve => setTimeout(resolve, 150));
 
   window.print();
 }
