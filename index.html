@@ -612,12 +612,12 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
   </div>
 
-  <!-- PRINT SHEET — rendered off-screen, revealed only on print -->
-  <div id="printSheet">
-    <div id="printHeader" class="print-header"></div>
-    <div id="printGrid" class="print-grid"></div>
-  </div>
+</div>
 
+<!-- PRINT SHEET — direct child of body so print CSS can target it -->
+<div id="printSheet">
+  <div id="printHeader" class="print-header"></div>
+  <div id="printGrid" class="print-grid"></div>
 </div>
 
 <script>
