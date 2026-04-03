@@ -1737,17 +1737,21 @@ async function loadCorrections() {
   const date       = document.getElementById('dateFrom')?.value || todayISO();
   const showVoided = document.getElementById('corrShowVoided')?.checked;
 
-  const qs  = new URLSearchParams({ action: 'getAllScans', date, voided: showVoided ? 'true' : 'false' });
-  const res = await fetch(API + '?' + qs.toString(), {
-    headers: { 'Authorization': 'Bearer ' + token }
-  });
-  const data = await res.json();
-  if (!data.ok) {
-    el.innerHTML = '<div class="empty">Failed to load scans: ' + (data.error || 'Unknown') + '</div>';
-    return;
+  try {
+    const qs  = new URLSearchParams({ action: 'getAllScans', date, voided: showVoided ? 'true' : 'false' });
+    const res = await fetch(API + '?' + qs.toString(), {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      el.innerHTML = '<div class="empty">Failed to load scans: ' + (data.error || 'Unknown') + '</div>';
+      return;
+    }
+    allCorrScans = data.data || [];
+    renderCorrections();
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Error: ' + e.message + '</div>';
   }
-  allCorrScans = data.data || [];
-  renderCorrections();
 }
 
 function renderCorrections() {
@@ -1765,6 +1769,9 @@ function renderCorrections() {
     return;
   }
 
+  // Store scan data for modal access by index — avoids quoting issues in onclick
+  window._corrRows = rows;
+
   el.innerHTML = `
     <table>
       <thead>
@@ -1774,7 +1781,7 @@ function renderCorrections() {
         </tr>
       </thead>
       <tbody>
-        ${rows.map(s => {
+        ${rows.map((s, i) => {
           const time = s.timestamp
             ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})
             : '—';
@@ -1782,11 +1789,12 @@ function renderCorrections() {
           const rowCls = s.voided ? 'scan-voided' : '';
           const product = s.unit_product || '—';
           const opName  = s.operator_name || s.operator_id?.slice(0,8) || '—';
-          const actions = s.voided ? '<span style="font-size:10px;color:var(--t3)">VOIDED</span>' : `
-            <div style="display:flex;gap:5px">
-              <button class="corr-btn void"  onclick="openVoidModal('${s.id}','${s.upc}','${s.activity}','${time}','${opName}')">Void</button>
-              <button class="corr-btn amend" onclick="openAmendModal('${s.id}','${s.upc}','${s.activity}','${time}','${s.line||''}','${s.notes||''}')">Amend</button>
-            </div>`;
+          const actions = s.voided
+            ? '<span style="font-size:10px;color:var(--t3)">VOIDED</span>'
+            : `<div style="display:flex;gap:5px">
+                <button class="corr-btn void"  onclick="openVoidModalIdx(${i})">Void</button>
+                <button class="corr-btn amend" onclick="openAmendModalIdx(${i})">Amend</button>
+               </div>`;
           return `<tr class="${rowCls}">
             <td class="td-mono" style="font-size:10px;color:var(--t3)">${time}</td>
             <td class="td-mono" style="font-size:11px;color:var(--text)">${s.upc||'—'}</td>
@@ -1802,6 +1810,25 @@ function renderCorrections() {
       </tbody>
     </table>
   `;
+}
+
+function openVoidModalIdx(i) {
+  const s = window._corrRows[i];
+  if (!s) return;
+  const time = s.timestamp
+    ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})
+    : '—';
+  const opName = s.operator_name || s.operator_id?.slice(0,8) || '—';
+  openVoidModal(s.id, s.upc, s.activity, time, opName);
+}
+
+function openAmendModalIdx(i) {
+  const s = window._corrRows[i];
+  if (!s) return;
+  const time = s.timestamp
+    ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})
+    : '—';
+  openAmendModal(s.id, s.upc, s.activity, time, s.line||'', s.notes||'');
 }
 
 // ── VOID MODAL ───────────────────────────────────────────────
