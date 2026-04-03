@@ -1163,7 +1163,7 @@ function renderBatchHistory(batches) {
     <table>
       <thead>
         <tr>
-          <th>Batch</th><th>Product Code</th><th>Product</th>
+          <th>Batch</th><th>Product Code</th><th>Product</th><th>Variant</th>
           <th>Qty</th><th>Seq Range</th><th>Status</th><th>Generated</th><th>Actions</th>
         </tr>
       </thead>
@@ -1171,13 +1171,13 @@ function renderBatchHistory(batches) {
         ${batches.map(b => {
           const statusCls = 'bs-' + (b.status || '').replace(/ /g,'_');
           const date = b.generated_at ? new Date(b.generated_at).toLocaleDateString('en-IN', {day:'numeric',month:'short'}) : '—';
-          // Derive product_code from batch — stored in upc_pool but we can parse from product name
-          const code = b.product || '—';
+          const variant = [b.model, b.color].filter(Boolean).join(' · ') || '—';
           return `
             <tr>
               <td class="td-mono" style="color:var(--yellow)">${b.batch_id}</td>
-              <td class="td-mono" style="color:var(--text)">${code}</td>
+              <td class="td-mono" style="color:var(--text)">${b.product_code || '—'}</td>
               <td style="color:var(--t2)">${b.product || '—'}</td>
+              <td style="color:var(--t2);font-size:11px">${variant}</td>
               <td class="td-mono">${fmt(b.quantity)}</td>
               <td class="td-mono" style="font-size:10px;color:var(--t3)">${b.upc_from} → ${b.upc_to}</td>
               <td><span class="${statusCls}">${b.status || '—'}</span></td>
@@ -1356,7 +1356,7 @@ function openPrintWindow(batch, rows, qrUrls) {
 </head><body>
 <div class="hdr">
   <span>LOT — Batch ${batch.batch_id}</span>
-  <span>${batch.product} · ${rows.length} stickers</span>
+  <span>${batch.product}${batch.model ? ' · ' + batch.model : ''}${batch.color ? ' · ' + batch.color : ''} · ${rows.length} stickers</span>
   <span>${date}</span>
 </div>
 <div class="grid">${stickers}</div>
