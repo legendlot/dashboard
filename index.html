@@ -381,11 +381,63 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 .scan-act-QC_PASS{color:var(--green)}
 .scan-act-QC_FAIL{color:var(--red)}
 .scan-act-WKS_IN,.scan-act-WKS_OUT{color:#a78bfa}
-.scan-act-RTO_IN{color:var(--orange)}
 .scan-act-PKG{color:#8b5cf6}
 .scan-act-RTE{color:#0ea5e9}
 .scan-act-RTR{color:var(--yellow)}
+.scan-act-RTO_IN{color:var(--orange)}
 .scan-voided{opacity:.4;text-decoration:line-through}
+.scan-act-PKG{color:#8b5cf6}
+.scan-act-RTE{color:#0ea5e9}
+.scan-act-RTR{color:var(--yellow)}
+
+/* ── CORRECTIONS TAB ── */
+.corr-btn{
+  padding:3px 10px;border-radius:3px;font-size:9px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border:none;
+  font-family:var(--mono);transition:opacity .12s;
+}
+.corr-btn:hover{opacity:.75}
+.corr-btn.void{background:rgba(222,42,42,.15);color:var(--red);border:1px solid rgba(222,42,42,.3)}
+.corr-btn.amend{background:rgba(242,205,26,.1);color:var(--yellow);border:1px solid rgba(242,205,26,.25)}
+.corr-btn:disabled{opacity:.25;cursor:not-allowed}
+
+/* ── MODAL OVERLAY ── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;z-index:200;
+  background:rgba(0,0,0,.8);align-items:center;justify-content:center;
+}
+.modal-overlay.show{display:flex}
+.modal-box{
+  background:var(--s2);border:1px solid var(--b2);border-radius:10px;
+  padding:24px;width:440px;max-width:calc(100vw - 40px);
+  display:flex;flex-direction:column;gap:14px;
+}
+.modal-title{font-family:var(--head);font-weight:700;font-size:14px;letter-spacing:.06em}
+.modal-meta{font-size:11px;color:var(--t2);line-height:1.6;background:var(--s3);
+  border-radius:6px;padding:10px 12px;border:1px solid var(--b1)}
+.modal-field{display:flex;flex-direction:column;gap:6px}
+.modal-label{font-size:9px;color:var(--t3);letter-spacing:.15em;text-transform:uppercase}
+.modal-input,.modal-textarea{
+  background:var(--s3);border:1px solid var(--b2);border-radius:6px;
+  padding:9px 12px;color:var(--text);font-family:var(--mono);font-size:12px;
+  outline:none;transition:border-color .15s;width:100%;
+}
+.modal-input:focus,.modal-textarea:focus{border-color:var(--yellow)}
+.modal-textarea{resize:vertical;min-height:72px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+.modal-cancel{
+  padding:9px 18px;background:var(--s3);border:1px solid var(--b2);
+  border-radius:6px;font-size:11px;color:var(--t2);cursor:pointer;
+  font-family:var(--mono);letter-spacing:.06em;
+}
+.modal-confirm{
+  padding:9px 20px;border:none;border-radius:6px;
+  font-size:11px;font-weight:700;cursor:pointer;
+  font-family:var(--mono);letter-spacing:.08em;
+}
+.modal-confirm.red{background:var(--red);color:#fff}
+.modal-confirm.yellow{background:var(--yellow);color:#000}
+.modal-err{font-size:11px;color:var(--red);min-height:16px}
 </style>
 </head>
 <body>
@@ -424,6 +476,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div class="tab" data-tab="runs" onclick="switchTab('runs')">Runs</div>
     <div class="tab" data-tab="upc" onclick="switchTab('upc')">UPC Generator</div>
     <div class="tab" data-tab="scans" onclick="switchTab('scans')">Scans</div>
+    <div class="tab" data-tab="corrections" onclick="switchTab('corrections')">Corrections</div>
   </div>
 
   <div class="datebar">
@@ -595,6 +648,85 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
   </div>
 
+  <!-- CORRECTIONS TAB -->
+  <div id="tab-corrections" class="content" style="display:none">
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="scan-filter-btn active" data-activity="" onclick="setCorrFilter('')">All</button>
+        <button class="scan-filter-btn" data-activity="INW" onclick="setCorrFilter('INW')">INW</button>
+        <button class="scan-filter-btn" data-activity="QC_PASS" onclick="setCorrFilter('QC_PASS')">QC Pass</button>
+        <button class="scan-filter-btn" data-activity="QC_FAIL" onclick="setCorrFilter('QC_FAIL')">QC Fail</button>
+        <button class="scan-filter-btn" data-activity="WKS_IN" onclick="setCorrFilter('WKS_IN')">WKS In</button>
+        <button class="scan-filter-btn" data-activity="WKS_OUT" onclick="setCorrFilter('WKS_OUT')">WKS Out</button>
+        <button class="scan-filter-btn" data-activity="PKG" onclick="setCorrFilter('PKG')">PKG</button>
+        <button class="scan-filter-btn" data-activity="RTE" onclick="setCorrFilter('RTE')">RTE</button>
+        <button class="scan-filter-btn" data-activity="RTR" onclick="setCorrFilter('RTR')">RTR</button>
+        <button class="scan-filter-btn" data-activity="RTO_IN" onclick="setCorrFilter('RTO_IN')">RTO In</button>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-left:auto">
+        <input type="text" id="corrUpcSearch" class="upc-input" placeholder="Search UPC…" style="width:180px" oninput="onCorrSearch()">
+        <label style="font-size:10px;color:var(--t3);letter-spacing:.1em;display:flex;align-items:center;gap:5px;cursor:pointer">
+          <input type="checkbox" id="corrShowVoided" onchange="loadCorrections()"> SHOW VOIDED
+        </label>
+      </div>
+    </div>
+
+    <div style="font-size:10px;color:var(--t3);margin-bottom:12px;padding:8px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:6px;line-height:1.6">
+      <strong style="color:var(--t2)">Tier 2 Void</strong> — Supervisor can void scans from the current shift only. Reason required.<br>
+      <strong style="color:var(--t2)">Tier 3 Amend</strong> — Manager can correct line, operator, or notes on any scan. Immutable audit trail created.
+    </div>
+
+    <div class="table-wrap" id="corrTable">
+      <div class="loading"><div class="spinner"></div> Loading...</div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- VOID MODAL -->
+<div class="modal-overlay" id="voidModal">
+  <div class="modal-box">
+    <div class="modal-title" style="color:var(--red)">⚠ Void Scan — Tier 2</div>
+    <div class="modal-meta" id="voidMeta">—</div>
+    <div class="modal-field">
+      <div class="modal-label">Reason <span style="color:var(--red)">*</span></div>
+      <textarea class="modal-textarea" id="voidReason" placeholder="Describe why this scan is being voided…"></textarea>
+    </div>
+    <div class="modal-err" id="voidErr"></div>
+    <div class="modal-footer">
+      <button class="modal-cancel" onclick="closeVoidModal()">Cancel</button>
+      <button class="modal-confirm red" onclick="submitVoid()">VOID SCAN</button>
+    </div>
+  </div>
+</div>
+
+<!-- AMEND MODAL -->
+<div class="modal-overlay" id="amendModal">
+  <div class="modal-box">
+    <div class="modal-title" style="color:var(--yellow)">✎ Amend Scan — Tier 3</div>
+    <div class="modal-meta" id="amendMeta">—</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="modal-field">
+        <div class="modal-label">Line</div>
+        <input type="text" class="modal-input" id="amendLine" placeholder="e.g. L1">
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Notes</div>
+        <input type="text" class="modal-input" id="amendNotes" placeholder="Optional notes">
+      </div>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Reason for amendment <span style="color:var(--red)">*</span></div>
+      <textarea class="modal-textarea" id="amendReason" placeholder="Describe what is being corrected and why…"></textarea>
+    </div>
+    <div class="modal-err" id="amendErr"></div>
+    <div class="modal-footer">
+      <button class="modal-cancel" onclick="closeAmendModal()">Cancel</button>
+      <button class="modal-confirm yellow" onclick="submitAmend()">SAVE AMENDMENT</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -721,11 +853,10 @@ function updateClock() {
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  ['exec','lines','qc','runs','upc','scans'].forEach(t => {
+  ['exec','lines','qc','runs','upc','scans','corrections'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
-  // Date bar not relevant for UPC tab
-  const showDateBar = tab !== 'upc' && tab !== 'scans';
+  const showDateBar = tab !== 'upc' && tab !== 'scans' && tab !== 'corrections';
   document.querySelector('.datebar').style.display = showDateBar ? '' : 'none';
   if (showDateBar) {
     const from = getDateFrom(), to = getDateTo();
@@ -750,12 +881,13 @@ async function loadTab(tab) {
   document.getElementById('refreshDot').className = 'refresh-indicator stale';
   try {
     const from = getDateFrom(), to = getDateTo();
-    if (tab === 'exec')  await loadExec(from);
-    if (tab === 'lines') await loadLines(from);
-    if (tab === 'qc')    await loadQC(from, to);
-    if (tab === 'runs')  await loadRuns(from, to);
-    if (tab === 'upc')   await loadUpcGen();
-    if (tab === 'scans') await loadScans();
+    if (tab === 'exec')        await loadExec(from);
+    if (tab === 'lines')       await loadLines(from);
+    if (tab === 'qc')          await loadQC(from, to);
+    if (tab === 'runs')        await loadRuns(from, to);
+    if (tab === 'upc')         await loadUpcGen();
+    if (tab === 'scans')       await loadScans();
+    if (tab === 'corrections') await loadCorrections();
     document.getElementById('lastRefresh').textContent =
       'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
   } catch(e) {
@@ -1488,7 +1620,7 @@ async function loadScans() {
 
 function renderScanSummary(scans) {
   const counts = {};
-  const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','PKG','RTE','RTR','RTO_IN'];
+  const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','RTO_IN'];
   activities.forEach(a => { counts[a] = 0; });
   scans.filter(s => !s.voided).forEach(s => {
     if (counts[s.activity] !== undefined) counts[s.activity]++;
@@ -1498,7 +1630,6 @@ function renderScanSummary(scans) {
   const colorMap = {
     INW:'#60a5fa', QC_PASS:'var(--green)', QC_FAIL:'var(--red)',
     WKS_IN:'#a78bfa', WKS_OUT:'#a78bfa', RTO_IN:'var(--orange)',
-    PKG:'#8b5cf6', RTE:'#0ea5e9', RTR:'var(--yellow)',
   };
 
   const total = scans.filter(s => !s.voided).length;
@@ -1579,6 +1710,209 @@ function renderScans() {
 
 function todayISO() { return new Date().toISOString().split('T')[0]; }
 
-</script>
+// ── CORRECTIONS TAB ──────────────────────────────────────────
+let corrActivityFilter = '';
+let corrSearchTimer    = null;
+let allCorrScans       = [];
+let pendingVoidScanId  = null;
+let pendingAmendScanId = null;
+
+function setCorrFilter(activity) {
+  corrActivityFilter = activity;
+  document.querySelectorAll('#tab-corrections .scan-filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.activity === activity);
+  });
+  renderCorrections();
+}
+
+function onCorrSearch() {
+  clearTimeout(corrSearchTimer);
+  corrSearchTimer = setTimeout(renderCorrections, 300);
+}
+
+async function loadCorrections() {
+  const el = document.getElementById('corrTable');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
+
+  const date       = document.getElementById('dateFrom')?.value || todayISO();
+  const showVoided = document.getElementById('corrShowVoided')?.checked;
+
+  const qs  = new URLSearchParams({ action: 'getAllScans', date, voided: showVoided ? 'true' : 'false' });
+  const res = await fetch(API + '?' + qs.toString(), {
+    headers: { 'Authorization': 'Bearer ' + token }
+  });
+  const data = await res.json();
+  if (!data.ok) {
+    el.innerHTML = '<div class="empty">Failed to load scans: ' + (data.error || 'Unknown') + '</div>';
+    return;
+  }
+  allCorrScans = data.data || [];
+  renderCorrections();
+}
+
+function renderCorrections() {
+  const el         = document.getElementById('corrTable');
+  const showVoided = document.getElementById('corrShowVoided')?.checked;
+  const search     = (document.getElementById('corrUpcSearch')?.value || '').trim().toLowerCase();
+
+  let rows = allCorrScans;
+  if (!showVoided)        rows = rows.filter(s => !s.voided);
+  if (corrActivityFilter) rows = rows.filter(s => s.activity === corrActivityFilter);
+  if (search)             rows = rows.filter(s => (s.upc||'').toLowerCase().includes(search));
+
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">🔍</span>No scans found</div>';
+    return;
+  }
+
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th><th>UPC</th><th>Activity</th><th>Line</th>
+          <th>Product</th><th>Operator</th><th>Loop</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(s => {
+          const time = s.timestamp
+            ? new Date(s.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})
+            : '—';
+          const actCls = 'scan-act-' + (s.activity||'');
+          const rowCls = s.voided ? 'scan-voided' : '';
+          const product = s.unit_product || '—';
+          const opName  = s.operator_name || s.operator_id?.slice(0,8) || '—';
+          const actions = s.voided ? '<span style="font-size:10px;color:var(--t3)">VOIDED</span>' : `
+            <div style="display:flex;gap:5px">
+              <button class="corr-btn void"  onclick="openVoidModal('${s.id}','${s.upc}','${s.activity}','${time}','${opName}')">Void</button>
+              <button class="corr-btn amend" onclick="openAmendModal('${s.id}','${s.upc}','${s.activity}','${time}','${s.line||''}','${s.notes||''}')">Amend</button>
+            </div>`;
+          return `<tr class="${rowCls}">
+            <td class="td-mono" style="font-size:10px;color:var(--t3)">${time}</td>
+            <td class="td-mono" style="font-size:11px;color:var(--text)">${s.upc||'—'}</td>
+            <td><span class="${actCls}" style="font-weight:700;font-size:10px;letter-spacing:.08em">${s.activity||'—'}</span></td>
+            <td style="color:var(--t2)">${s.line||'—'}</td>
+            <td style="color:var(--t2);font-size:11px">${product}</td>
+            <td style="color:var(--t2);font-size:11px">${opName}</td>
+            <td class="td-mono" style="color:var(--t3)">${s.loop_count??'—'}</td>
+            <td style="font-size:10px;color:${s.voided?'var(--red)':'var(--green)'}">${s.voided?'VOIDED':'OK'}</td>
+            <td>${actions}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── VOID MODAL ───────────────────────────────────────────────
+function openVoidModal(scanId, upc, activity, time, operator) {
+  pendingVoidScanId = scanId;
+  document.getElementById('voidMeta').innerHTML =
+    `<strong>${upc}</strong> &nbsp;·&nbsp; ${activity} &nbsp;·&nbsp; ${time}<br>Operator: ${operator}`;
+  document.getElementById('voidReason').value = '';
+  document.getElementById('voidErr').textContent = '';
+  document.getElementById('voidModal').classList.add('show');
+}
+
+function closeVoidModal() {
+  pendingVoidScanId = null;
+  document.getElementById('voidModal').classList.remove('show');
+}
+
+async function submitVoid() {
+  const reason = document.getElementById('voidReason').value.trim();
+  const errEl  = document.getElementById('voidErr');
+  if (!reason) { errEl.textContent = 'Reason is required'; return; }
+  if (!pendingVoidScanId) return;
+
+  errEl.textContent = '';
+  const btn = document.querySelector('#voidModal .modal-confirm');
+  btn.textContent = 'Voiding...'; btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API}?action=_`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ action: 'voidScan', data: { scan_id: pendingVoidScanId, void_reason: reason } })
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      errEl.textContent = data.error || 'Void failed';
+      return;
+    }
+    closeVoidModal();
+    await loadCorrections();
+  } catch(e) {
+    errEl.textContent = 'Connection error';
+  } finally {
+    btn.textContent = 'VOID SCAN'; btn.disabled = false;
+  }
+}
+
+// ── AMEND MODAL ──────────────────────────────────────────────
+function openAmendModal(scanId, upc, activity, time, line, notes) {
+  pendingAmendScanId = scanId;
+  document.getElementById('amendMeta').innerHTML =
+    `<strong>${upc}</strong> &nbsp;·&nbsp; ${activity} &nbsp;·&nbsp; ${time}`;
+  document.getElementById('amendLine').value   = line || '';
+  document.getElementById('amendNotes').value  = notes || '';
+  document.getElementById('amendReason').value = '';
+  document.getElementById('amendErr').textContent = '';
+  document.getElementById('amendModal').classList.add('show');
+}
+
+function closeAmendModal() {
+  pendingAmendScanId = null;
+  document.getElementById('amendModal').classList.remove('show');
+}
+
+async function submitAmend() {
+  const reason = document.getElementById('amendReason').value.trim();
+  const errEl  = document.getElementById('amendErr');
+  if (!reason) { errEl.textContent = 'Reason is required'; return; }
+  if (!pendingAmendScanId) return;
+
+  const updates = {};
+  const line  = document.getElementById('amendLine').value.trim();
+  const notes = document.getElementById('amendNotes').value.trim();
+  if (line)  updates.line  = line;
+  if (notes) updates.notes = notes;
+
+  if (!Object.keys(updates).length) {
+    errEl.textContent = 'No changes to save';
+    return;
+  }
+
+  errEl.textContent = '';
+  const btn = document.querySelector('#amendModal .modal-confirm');
+  btn.textContent = 'Saving...'; btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API}?action=_`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ action: 'amendScan', data: { scan_id: pendingAmendScanId, reason, updates } })
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      errEl.textContent = data.error || 'Amendment failed';
+      return;
+    }
+    closeAmendModal();
+    await loadCorrections();
+  } catch(e) {
+    errEl.textContent = 'Connection error';
+  } finally {
+    btn.textContent = 'SAVE AMENDMENT'; btn.disabled = false;
+  }
+}
+
+// Close modals on backdrop click
+document.getElementById('voidModal').addEventListener('click', function(e) {
+  if (e.target === this) closeVoidModal();
+});
+document.getElementById('amendModal').addEventListener('click', function(e) {
+  if (e.target === this) closeAmendModal();
+});
 </body>
 </html>
