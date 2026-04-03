@@ -369,6 +369,20 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 .bs-fully_applied{color:var(--t3)}
 
 /* ── PRINT STYLES ── */
+
+/* ── SCANS TAB ── */
+.scan-filter-btn{
+  padding:4px 12px;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  background:var(--s2);border:1px solid var(--b1);color:var(--t2);border-radius:4px;cursor:pointer;
+}
+.scan-filter-btn:hover{border-color:var(--yellow);color:var(--yellow)}
+.scan-filter-btn.active{background:var(--yellow);color:#080808;border-color:var(--yellow)}
+.scan-act-INW{color:#60a5fa}
+.scan-act-QC_PASS{color:var(--green)}
+.scan-act-QC_FAIL{color:var(--red)}
+.scan-act-WKS_IN,.scan-act-WKS_OUT{color:#a78bfa}
+.scan-act-RTO_IN{color:var(--orange)}
+.scan-voided{opacity:.4;text-decoration:line-through}
 </style>
 </head>
 <body>
@@ -406,6 +420,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div class="tab" data-tab="qc" onclick="switchTab('qc')">QC</div>
     <div class="tab" data-tab="runs" onclick="switchTab('runs')">Runs</div>
     <div class="tab" data-tab="upc" onclick="switchTab('upc')">UPC Generator</div>
+    <div class="tab" data-tab="scans" onclick="switchTab('scans')">Scans</div>
   </div>
 
   <div class="datebar">
@@ -545,6 +560,35 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
   </div>
 
+  <!-- SCANS TAB -->
+  <div id="tab-scans" class="content" style="display:none">
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="scanActivityFilters">
+        <button class="scan-filter-btn active" data-activity="" onclick="setScanFilter('')">All</button>
+        <button class="scan-filter-btn" data-activity="INW" onclick="setScanFilter('INW')">INW</button>
+        <button class="scan-filter-btn" data-activity="QC_PASS" onclick="setScanFilter('QC_PASS')">QC Pass</button>
+        <button class="scan-filter-btn" data-activity="QC_FAIL" onclick="setScanFilter('QC_FAIL')">QC Fail</button>
+        <button class="scan-filter-btn" data-activity="WKS_IN" onclick="setScanFilter('WKS_IN')">WKS In</button>
+        <button class="scan-filter-btn" data-activity="WKS_OUT" onclick="setScanFilter('WKS_OUT')">WKS Out</button>
+        <button class="scan-filter-btn" data-activity="RTO_IN" onclick="setScanFilter('RTO_IN')">RTO In</button>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-left:auto">
+        <input type="text" id="scanUpcSearch" class="upc-input" placeholder="Search UPC…" style="width:180px" oninput="onScanSearch()">
+        <label style="font-size:10px;color:var(--t3);letter-spacing:.1em;display:flex;align-items:center;gap:5px;cursor:pointer">
+          <input type="checkbox" id="scanShowVoided" onchange="loadScans()"> SHOW VOIDED
+        </label>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:16px" id="scanSummaryCards"></div>
+
+    <div class="table-wrap" id="scansTable">
+      <div class="loading"><div class="spinner"></div> Loading...</div>
+    </div>
+
+  </div>
+
 </div>
 
 <script>
@@ -671,11 +715,11 @@ function updateClock() {
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  ['exec','lines','qc','runs','upc'].forEach(t => {
+  ['exec','lines','qc','runs','upc','scans'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
   // Date bar not relevant for UPC tab
-  const showDateBar = tab !== 'upc';
+  const showDateBar = tab !== 'upc' && tab !== 'scans';
   document.querySelector('.datebar').style.display = showDateBar ? '' : 'none';
   if (showDateBar) {
     const from = getDateFrom(), to = getDateTo();
@@ -705,6 +749,7 @@ async function loadTab(tab) {
     if (tab === 'qc')    await loadQC(from, to);
     if (tab === 'runs')  await loadRuns(from, to);
     if (tab === 'upc')   await loadUpcGen();
+    if (tab === 'scans') await loadScans();
     document.getElementById('lastRefresh').textContent =
       'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
   } catch(e) {
@@ -1388,6 +1433,145 @@ async function markSent(batchId) {
   // Status update to sent_to_print — no dedicated worker endpoint yet, just refresh
   loadUpcHistory();
 }
+
+
+// ── SCANS TAB ────────────────────────────────────────────────
+let scanActivityFilter = '';
+let scanSearchTimer    = null;
+let allScans           = [];
+
+function setScanFilter(activity) {
+  scanActivityFilter = activity;
+  document.querySelectorAll('.scan-filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.activity === activity);
+  });
+  renderScans();
+}
+
+function onScanSearch() {
+  clearTimeout(scanSearchTimer);
+  scanSearchTimer = setTimeout(renderScans, 300);
+}
+
+async function loadScans() {
+  const el = document.getElementById('scansTable');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
+  document.getElementById('scanSummaryCards').innerHTML = '';
+
+  const date       = document.getElementById('dateFrom')?.value || todayISO();
+  const showVoided = document.getElementById('scanShowVoided')?.checked;
+
+  // Fetch all scans for the date — using getScanHistory isn't right,
+  // so we add a new endpoint. For now, fetch via direct Supabase query
+  // using the worker's existing api() wrapper pattern won't work without
+  // a new endpoint — use the existing pattern with a date filter param.
+  const qs = new URLSearchParams({ action: 'getAllScans', date });
+  const res = await fetch(API + '?' + qs.toString(), {
+    headers: { 'Authorization': 'Bearer ' + token }
+  });
+  const data = await res.json();
+  if (!data.ok) {
+    el.innerHTML = '<div class="empty">Failed to load scans: ' + (data.error || 'Unknown error') + '</div>';
+    return;
+  }
+
+  allScans = data.data || [];
+  renderScanSummary(allScans);
+  renderScans();
+}
+
+function renderScanSummary(scans) {
+  const counts = {};
+  const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','RTO_IN'];
+  activities.forEach(a => { counts[a] = 0; });
+  scans.filter(s => !s.voided).forEach(s => {
+    if (counts[s.activity] !== undefined) counts[s.activity]++;
+    else counts[s.activity] = (counts[s.activity]||0)+1;
+  });
+
+  const colorMap = {
+    INW:'#60a5fa', QC_PASS:'var(--green)', QC_FAIL:'var(--red)',
+    WKS_IN:'#a78bfa', WKS_OUT:'#a78bfa', RTO_IN:'var(--orange)',
+  };
+
+  const total = scans.filter(s => !s.voided).length;
+  const voided = scans.filter(s => s.voided).length;
+
+  const el = document.getElementById('scanSummaryCards');
+  el.innerHTML = `
+    <div style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;padding:10px 14px">
+      <div style="font-size:9px;color:var(--t3);letter-spacing:.12em;margin-bottom:4px">TOTAL</div>
+      <div style="font-size:22px;font-weight:700;color:var(--yellow)">${total}</div>
+    </div>
+    ${activities.map(a => `
+    <div style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;padding:10px 14px;cursor:pointer"
+         onclick="setScanFilter('${a}')">
+      <div style="font-size:9px;color:var(--t3);letter-spacing:.12em;margin-bottom:4px">${a.replace('_',' ')}</div>
+      <div style="font-size:22px;font-weight:700;color:${colorMap[a]||'var(--text)'}">${counts[a]||0}</div>
+    </div>`).join('')}
+    <div style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;padding:10px 14px">
+      <div style="font-size:9px;color:var(--t3);letter-spacing:.12em;margin-bottom:4px">VOIDED</div>
+      <div style="font-size:22px;font-weight:700;color:var(--t3)">${voided}</div>
+    </div>
+  `;
+}
+
+function renderScans() {
+  const el        = document.getElementById('scansTable');
+  const showVoided = document.getElementById('scanShowVoided')?.checked;
+  const search    = (document.getElementById('scanUpcSearch')?.value || '').trim().toLowerCase();
+
+  let rows = allScans;
+  if (!showVoided)              rows = rows.filter(s => !s.voided);
+  if (scanActivityFilter)       rows = rows.filter(s => s.activity === scanActivityFilter);
+  if (search)                   rows = rows.filter(s => (s.upc||'').toLowerCase().includes(search));
+
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">📡</span>No scans found</div>';
+    return;
+  }
+
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>UPC</th>
+          <th>Activity</th>
+          <th>Line</th>
+          <th>Product</th>
+          <th>Operator</th>
+          <th>Loop</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(s => {
+          const time = s.timestamp
+            ? new Date(s.timestamp).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})
+            : '—';
+          const actCls = 'scan-act-' + (s.activity||'');
+          const rowCls = s.voided ? 'scan-voided' : '';
+          const product = s.unit_product || '—';
+          const operatorName = s.operator_name || s.operator_id?.slice(0,8) || '—';
+          return `<tr class="${rowCls}">
+            <td class="td-mono" style="font-size:10px;color:var(--t3)">${time}</td>
+            <td class="td-mono" style="font-size:11px;color:var(--text)">${s.upc || '—'}</td>
+            <td><span class="${actCls}" style="font-weight:700;font-size:10px;letter-spacing:.08em">${s.activity||'—'}</span></td>
+            <td style="color:var(--t2)">${s.line||'—'}</td>
+            <td style="color:var(--t2);font-size:11px">${product}</td>
+            <td style="color:var(--t2);font-size:11px">${operatorName}</td>
+            <td class="td-mono" style="color:var(--t3)">${s.loop_count ?? '—'}</td>
+            <td style="font-size:10px;color:${s.voided?'var(--red)':'var(--green)'}">${s.voided ? 'VOIDED' : 'OK'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function todayISO() { return new Date().toISOString().split('T')[0]; }
+
 </script>
 </body>
 </html>
