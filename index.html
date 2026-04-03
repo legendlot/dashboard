@@ -382,6 +382,9 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 .scan-act-QC_FAIL{color:var(--red)}
 .scan-act-WKS_IN,.scan-act-WKS_OUT{color:#a78bfa}
 .scan-act-RTO_IN{color:var(--orange)}
+.scan-act-PKG{color:#8b5cf6}
+.scan-act-RTE{color:#0ea5e9}
+.scan-act-RTR{color:var(--yellow)}
 .scan-voided{opacity:.4;text-decoration:line-through}
 </style>
 </head>
@@ -571,6 +574,9 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         <button class="scan-filter-btn" data-activity="QC_FAIL" onclick="setScanFilter('QC_FAIL')">QC Fail</button>
         <button class="scan-filter-btn" data-activity="WKS_IN" onclick="setScanFilter('WKS_IN')">WKS In</button>
         <button class="scan-filter-btn" data-activity="WKS_OUT" onclick="setScanFilter('WKS_OUT')">WKS Out</button>
+        <button class="scan-filter-btn" data-activity="PKG" onclick="setScanFilter('PKG')">PKG</button>
+        <button class="scan-filter-btn" data-activity="RTE" onclick="setScanFilter('RTE')">RTE</button>
+        <button class="scan-filter-btn" data-activity="RTR" onclick="setScanFilter('RTR')">RTR</button>
         <button class="scan-filter-btn" data-activity="RTO_IN" onclick="setScanFilter('RTO_IN')">RTO In</button>
       </div>
       <div style="display:flex;gap:6px;align-items:center;margin-left:auto">
@@ -1482,7 +1488,7 @@ async function loadScans() {
 
 function renderScanSummary(scans) {
   const counts = {};
-  const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','RTO_IN'];
+  const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','PKG','RTE','RTR','RTO_IN'];
   activities.forEach(a => { counts[a] = 0; });
   scans.filter(s => !s.voided).forEach(s => {
     if (counts[s.activity] !== undefined) counts[s.activity]++;
@@ -1492,6 +1498,7 @@ function renderScanSummary(scans) {
   const colorMap = {
     INW:'#60a5fa', QC_PASS:'var(--green)', QC_FAIL:'var(--red)',
     WKS_IN:'#a78bfa', WKS_OUT:'#a78bfa', RTO_IN:'var(--orange)',
+    PKG:'#8b5cf6', RTE:'#0ea5e9', RTR:'var(--yellow)',
   };
 
   const total = scans.filter(s => !s.voided).length;
