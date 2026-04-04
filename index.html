@@ -256,7 +256,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 /* ── HOURLY CHART ── */
 .chart-wrap{background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:16px}
 .chart-title{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--t3);margin-bottom:14px}
-.bar-chart{display:flex;align-items:flex-end;gap:6px;height:100px}
+.bar-chart{display:flex;align-items:flex-end;gap:6px;height:120px}
 .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}
 .bar-fill-wrap{flex:1;display:flex;align-items:flex-end;width:100%}
 .bar-fill{width:100%;background:var(--yellow);border-radius:2px 2px 0 0;opacity:.8;transition:height .4s ease;min-height:2px}
@@ -1094,6 +1094,9 @@ function renderHourlyChart(rows) {
     const heightPct = Math.round((total / maxVal) * 100);
     return `
       <div class="bar-col">
+        <div style="font-size:9px;color:var(--t2);font-weight:600;min-height:14px;text-align:center;line-height:1">
+          ${total > 0 ? total : ''}
+        </div>
         <div class="bar-fill-wrap">
           <div class="bar-fill l1" style="height:${heightPct}%;width:100%;" title="${h}:00 — ${total} units"></div>
         </div>
