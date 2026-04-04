@@ -555,6 +555,12 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
   <!-- QC TAB -->
   <div id="tab-qc" class="content" style="display:none">
     <div>
+      <div class="sec-label">QC Cycle Time — INW to Outcome</div>
+      <div class="cards" id="qcCycleCards">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <div>
       <div class="sec-label">First Pass Yield by Line</div>
       <div class="table-wrap" id="fpyTable">
         <div class="loading"><div class="spinner"></div></div>
@@ -1184,10 +1190,7 @@ function renderLineCards(lines) {
     return;
   }
   el.innerHTML = lines.map(l => {
-    // Completion = QC Pass vs target (meaningful intraday metric)
-    const pct = l.target_qty > 0
-      ? Math.round((l.qc_pass_count / l.target_qty) * 100)
-      : 0;
+    const pct = l.completion_pct || 0;
     const passRate = l.pass_rate_pct || 0;
     const fillClass = pct >= 90 ? 'good' : pct >= 60 ? '' : pct >= 30 ? 'warn' : 'bad';
     const badge = pct >= 90 ? 'green' : pct >= 60 ? 'yellow' : pct >= 30 ? 'orange' : 'red';
@@ -1237,7 +1240,7 @@ function renderLineCards(lines) {
         </div>
         <div class="lc-bottom">
           <span>${fmt(l.active_operators)} operators · ${fmt(l.downtime_mins)}m downtime</span>
-          <span class="lc-badge ${badge}">${pct}% of target</span>
+          <span class="lc-badge ${badge}">${pct}% done</span>
         </div>
         <div class="lc-bottom" style="border-top:none;padding-top:2px;margin-top:0;flex-wrap:wrap;gap:4px">
           <span>Target: ${fmt(l.target_qty)} · FPY: ${passRate}%</span>
@@ -1282,9 +1285,61 @@ function renderOperatorTable(ops) {
 async function loadQC(from, to) {
   const data = await api('getQCView', { from, to });
   if (!data.ok) return;
+  renderCycleTime(data.data.cycle_time || null);
   renderFPY(data.data.fpy || []);
   renderDefects(data.data.heatmap || []);
   renderRepeatDefects(data.data.repeat_defects || []);
+}
+
+function fmtMins(mins) {
+  if (mins == null) return '—';
+  const m = Number(mins);
+  if (m < 60) return m.toFixed(1) + ' min';
+  const h = Math.floor(m / 60);
+  const rem = (m % 60).toFixed(0);
+  return `${h}h ${rem}m`;
+}
+
+function renderCycleTime(ct) {
+  const el = document.getElementById('qcCycleCards');
+  if (!el) return;
+  if (!ct || !ct.units_measured) {
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-label">Avg QC Cycle Time</div>
+        <div class="card-val" style="font-size:20px">—</div>
+        <div class="card-sub">No data for period</div>
+      </div>`;
+    return;
+  }
+  const avgColor = ct.avg_mins_all <= 30 ? 'var(--green)' : ct.avg_mins_all <= 60 ? 'var(--yellow)' : 'var(--red)';
+  el.innerHTML = `
+    <div class="card hi">
+      <div class="card-label">Avg Cycle Time</div>
+      <div class="card-val" style="font-size:22px;color:${avgColor}">${fmtMins(ct.avg_mins_all)}</div>
+      <div class="card-sub">INW → QC outcome · ${fmt(ct.units_measured)} units</div>
+    </div>
+    <div class="card ok">
+      <div class="card-label">Avg — QC Pass</div>
+      <div class="card-val" style="font-size:22px;color:var(--green)">${fmtMins(ct.avg_mins_pass)}</div>
+      <div class="card-sub">Units that passed</div>
+    </div>
+    <div class="card bad">
+      <div class="card-label">Avg — QC Fail</div>
+      <div class="card-val" style="font-size:22px;color:var(--red)">${fmtMins(ct.avg_mins_fail)}</div>
+      <div class="card-sub">Units that failed</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Fastest</div>
+      <div class="card-val" style="font-size:22px">${fmtMins(ct.fastest_mins)}</div>
+      <div class="card-sub">Quickest unit through QC</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Slowest</div>
+      <div class="card-val" style="font-size:22px">${fmtMins(ct.slowest_mins)}</div>
+      <div class="card-sub">Longest unit through QC</div>
+    </div>
+  `;
 }
 
 function renderFPY(rows) {
