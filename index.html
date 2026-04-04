@@ -149,7 +149,7 @@ body::after{
 .last-refresh{margin-left:auto;font-size:10px;color:var(--t3)}
 
 /* ── CONTENT AREA ── */
-.content{flex:1 1 0;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;min-height:0}
+.content{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;min-height:0}
 .content::-webkit-scrollbar{width:4px}
 .content::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
 
@@ -928,6 +928,7 @@ function onLoggedIn() {
   setInterval(updateClock, 60000);
 
   startRefresh();
+  setTimeout(setContentHeight, 100);
 }
 
 function doLogout() {
@@ -961,9 +962,24 @@ function switchTab(tab) {
     document.getElementById('dateTo').style.display      = isRange || tab === 'qc' || tab === 'runs' || tab === 'alerts' ? '' : 'none';
   }
   loadTab(tab);
+  setTimeout(setContentHeight, 0);
 }
 
-// ── REFRESH LOOP ─────────────────────────────────────────────
+// ── CONTENT HEIGHT (scroll fix) ───────────────────────────────
+function setContentHeight() {
+  const topbar  = document.querySelector('.topbar');
+  const tabs    = document.querySelector('.tabs');
+  const datebar = document.querySelector('.datebar');
+  const topbarH  = topbar  ? topbar.offsetHeight  : 0;
+  const tabsH    = tabs    ? tabs.offsetHeight    : 0;
+  const datebarH = (datebar && datebar.style.display !== 'none') ? datebar.offsetHeight : 0;
+  const h = window.innerHeight - topbarH - tabsH - datebarH;
+  document.querySelectorAll('.content').forEach(el => {
+    el.style.height    = h + 'px';
+    el.style.maxHeight = h + 'px';
+  });
+}
+window.addEventListener('resize', setContentHeight);
 function startRefresh() {
   loadTab(activeTab);
   refreshTimer = setInterval(() => {
