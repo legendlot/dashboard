@@ -1184,10 +1184,16 @@ function renderLineCards(lines) {
     return;
   }
   el.innerHTML = lines.map(l => {
-    const pct = l.completion_pct || 0;
+    // Completion = QC Pass vs target (meaningful intraday metric)
+    const pct = l.target_qty > 0
+      ? Math.round((l.qc_pass_count / l.target_qty) * 100)
+      : 0;
     const passRate = l.pass_rate_pct || 0;
     const fillClass = pct >= 90 ? 'good' : pct >= 60 ? '' : pct >= 30 ? 'warn' : 'bad';
     const badge = pct >= 90 ? 'green' : pct >= 60 ? 'yellow' : pct >= 30 ? 'orange' : 'red';
+    const firstScan = l.first_scan_at
+      ? new Date(l.first_scan_at).toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata'})
+      : null;
     return `
       <div class="line-card">
         <div class="lc-header">
@@ -1231,15 +1237,11 @@ function renderLineCards(lines) {
         </div>
         <div class="lc-bottom">
           <span>${fmt(l.active_operators)} operators · ${fmt(l.downtime_mins)}m downtime</span>
-          <span class="lc-badge ${badge}">${pct}% done</span>
+          <span class="lc-badge ${badge}">${pct}% of target</span>
         </div>
-        <div class="lc-bottom" style="border-top:none;padding-top:4px;margin-top:0">
-          <span>Target: ${fmt(l.target_qty)} · Pass rate: ${passRate}%</span>
-          <span style="color:var(--t3)">
-            ${l.first_scan_at
-              ? '⏱ First scan ' + new Date(l.first_scan_at).toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata'})
-              : 'No scans yet'}
-          </span>
+        <div class="lc-bottom" style="border-top:none;padding-top:2px;margin-top:0;flex-wrap:wrap;gap:4px">
+          <span>Target: ${fmt(l.target_qty)} · FPY: ${passRate}%</span>
+          ${firstScan ? `<span style="color:var(--t3);margin-left:auto">⏱ ${firstScan}</span>` : ''}
         </div>
       </div>
     `;
