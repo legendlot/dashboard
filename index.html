@@ -493,6 +493,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div class="tab" data-tab="corrections" onclick="switchTab('corrections')">Corrections</div>
     <div class="tab" data-tab="alerts" onclick="switchTab('alerts')">Alerts <span id="alertsBadge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle"></span></div>
     <div class="tab" data-tab="returns" onclick="switchTab('returns')">Returns <span id="returnsBadge" style="display:none;background:var(--orange);color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle"></span></div>
+    <div class="tab" data-tab="reporting" onclick="switchTab('reporting')">Reporting</div>
   </div>
 
   <div class="datebar">
@@ -740,6 +741,31 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
       <div class="loading"><div class="spinner"></div> Loading...</div>
     </div>
   </div>
+  <!-- REPORTING TAB -->
+  <div id="tab-reporting" class="content" style="display:none">
+
+    <div>
+      <div class="sec-label">Production Summary</div>
+      <div class="cards" id="reportingCards">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">Daily Output</div>
+      <div class="table-wrap" id="reportingDailyTable">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">Line Breakdown</div>
+      <div class="table-wrap" id="reportingLineTable">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+  </div>
 
 </div>
 
@@ -944,10 +970,10 @@ function updateClock() {
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  ['exec','lines','qc','runs','upc','scans','corrections','alerts','returns'].forEach(t => {
+  ['exec','lines','qc','runs','upc','scans','corrections','alerts','returns','reporting'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
-  const showDateBar = tab !== 'upc' && tab !== 'scans' && tab !== 'corrections' && tab !== 'returns';
+  const showDateBar = tab !== 'upc' && tab !== 'scans' && tab !== 'corrections' && tab !== 'returns' && tab !== 'lines' && tab !== 'reporting';
   document.querySelector('.datebar').style.display = showDateBar ? '' : 'none';
   if (showDateBar) {
     const from = getDateFrom(), to = getDateTo();
@@ -989,7 +1015,7 @@ async function loadTab(tab) {
   try {
     const from = getDateFrom(), to = getDateTo();
     if (tab === 'exec')        await loadExec(from);
-    if (tab === 'lines')       await loadLines(from);
+    if (tab === 'lines')       await loadLines();
     if (tab === 'qc')          await loadQC(from, to);
     if (tab === 'runs')        await loadRuns(from, to);
     if (tab === 'upc')         await loadUpcGen();
@@ -997,6 +1023,7 @@ async function loadTab(tab) {
     if (tab === 'corrections') await loadCorrections();
     if (tab === 'alerts')      await loadAlerts(from, to);
     if (tab === 'returns')     await loadReturns();
+    if (tab === 'reporting')   await loadReporting(from, to);
     document.getElementById('lastRefresh').textContent =
       'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
   } catch(e) {
@@ -1176,8 +1203,8 @@ function renderExecRuns(runs, date) {
 }
 
 // ── LINES VIEW ───────────────────────────────────────────────
-async function loadLines(date) {
-  const data = await api('getLineView', { date });
+async function loadLines() {
+  const data = await api('getLineView', { date: todayStr() });
   if (!data.ok) return;
   renderLineCards(data.data.lines || []);
   renderOperatorTable(data.data.operator_stats || []);
@@ -2443,6 +2470,163 @@ async function submitReturnsAction(outcome) {
   } catch(e) {
     errEl.textContent = 'Connection error';
   }
+}
+
+// ── REPORTING TAB ────────────────────────────────────────────
+async function loadReporting(from, to) {
+  document.getElementById('reportingCards').innerHTML       = '<div class="loading"><div class="spinner"></div></div>';
+  document.getElementById('reportingDailyTable').innerHTML  = '<div class="loading"><div class="spinner"></div></div>';
+  document.getElementById('reportingLineTable').innerHTML   = '<div class="loading"><div class="spinner"></div></div>';
+
+  const [pvaRes, summaryRes] = await Promise.all([
+    api('getPlanVsActual', { from, to }),
+    api('getScanSummary',  { date: from, date_to: to }),
+  ]);
+
+  const rows = pvaRes.ok ? (pvaRes.data || []) : [];
+
+  renderReportingCards(rows, from, to);
+  renderReportingDaily(rows);
+  renderReportingLines(rows);
+}
+
+function renderReportingCards(rows, from, to) {
+  const el = document.getElementById('reportingCards');
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty">No data for selected period</div>';
+    return;
+  }
+
+  const totalTarget     = rows.reduce((s, r) => s + (Number(r.target_qty)       || 0), 0);
+  const totalPass       = rows.reduce((s, r) => s + (Number(r.actual_qc_pass)   || 0), 0);
+  const totalDispatched = rows.reduce((s, r) => s + (Number(r.total_dispatched) || 0), 0);
+  const totalRtr        = rows.reduce((s, r) => s + (Number(r.actual_rtr)       || 0), 0);
+  const totalRte        = rows.reduce((s, r) => s + (Number(r.actual_rte)       || 0), 0);
+  const dispatchPct     = totalTarget > 0 ? Math.round((totalDispatched / totalTarget) * 100) : 0;
+  const uniqueDays      = new Set(rows.map(r => r.run_date)).size;
+  const uniqueLines     = new Set(rows.map(r => r.line_no).filter(Boolean)).size;
+
+  el.innerHTML = `
+    <div class="card hi">
+      <div class="card-label">Total QC Pass</div>
+      <div class="card-val yellow">${fmt(totalPass)}</div>
+      <div class="card-sub">${uniqueDays} days · ${uniqueLines} lines</div>
+    </div>
+    <div class="card ok">
+      <div class="card-label">Total Dispatched</div>
+      <div class="card-val green">${fmt(totalDispatched)}</div>
+      <div class="card-sub">${fmt(totalRtr)} retail · ${fmt(totalRte)} ecom</div>
+    </div>
+    <div class="card ${dispatchPct >= 90 ? 'ok' : dispatchPct >= 60 ? 'warn' : 'bad'}">
+      <div class="card-label">Dispatch vs Target</div>
+      <div class="card-val ${dispatchPct >= 90 ? 'green' : dispatchPct >= 60 ? 'yellow' : 'red'}">${dispatchPct}%</div>
+      <div class="card-sub">Target: ${fmt(totalTarget)}</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Production Runs</div>
+      <div class="card-val">${rows.length}</div>
+      <div class="card-sub">In selected period</div>
+    </div>
+  `;
+}
+
+function renderReportingDaily(rows) {
+  const el = document.getElementById('reportingDailyTable');
+  if (!rows.length) { el.innerHTML = '<div class="empty">No data</div>'; return; }
+
+  // Group by date
+  const byDate = {};
+  rows.forEach(r => {
+    if (!byDate[r.run_date]) byDate[r.run_date] = { target:0, pass:0, dispatched:0, rtr:0, rte:0, runs:0 };
+    const d = byDate[r.run_date];
+    d.target      += Number(r.target_qty)       || 0;
+    d.pass        += Number(r.actual_qc_pass)   || 0;
+    d.dispatched  += Number(r.total_dispatched) || 0;
+    d.rtr         += Number(r.actual_rtr)       || 0;
+    d.rte         += Number(r.actual_rte)       || 0;
+    d.runs++;
+  });
+
+  const dates = Object.keys(byDate).sort().reverse();
+
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Runs</th><th>Target</th>
+          <th>QC Pass</th><th>Dispatched</th><th>Retail</th><th>Ecom</th><th>Done %</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${dates.map(d => {
+          const row = byDate[d];
+          const pct = row.target > 0 ? Math.round((row.dispatched / row.target) * 100) : 0;
+          const pctColor = pct >= 90 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : pct > 0 ? 'var(--orange)' : 'var(--t3)';
+          return `<tr>
+            <td class="td-mono" style="color:var(--text)">${d}</td>
+            <td class="td-mono">${row.runs}</td>
+            <td class="td-mono">${fmt(row.target)}</td>
+            <td class="td-mono" style="color:var(--green)">${fmt(row.pass)}</td>
+            <td class="td-mono" style="color:var(--text)">${fmt(row.dispatched)}</td>
+            <td class="td-mono" style="color:#a78bfa">${fmt(row.rtr)}</td>
+            <td class="td-mono" style="color:#38bdf8">${fmt(row.rte)}</td>
+            <td class="td-mono" style="color:${pctColor};font-weight:700">${pct}%</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderReportingLines(rows) {
+  const el = document.getElementById('reportingLineTable');
+  if (!rows.length) { el.innerHTML = '<div class="empty">No data</div>'; return; }
+
+  // Group by line
+  const byLine = {};
+  rows.forEach(r => {
+    const line = r.line_no || '—';
+    if (!byLine[line]) byLine[line] = { target:0, pass:0, dispatched:0, rtr:0, rte:0, runs:0, products: new Set() };
+    const d = byLine[line];
+    d.target     += Number(r.target_qty)       || 0;
+    d.pass       += Number(r.actual_qc_pass)   || 0;
+    d.dispatched += Number(r.total_dispatched) || 0;
+    d.rtr        += Number(r.actual_rtr)       || 0;
+    d.rte        += Number(r.actual_rte)       || 0;
+    d.runs++;
+    if (r.product) d.products.add(r.product);
+  });
+
+  const lines = Object.keys(byLine).sort();
+
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Line</th><th>Runs</th><th>Products</th><th>Target</th>
+          <th>QC Pass</th><th>Dispatched</th><th>Retail</th><th>Ecom</th><th>Done %</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lines.map(line => {
+          const d = byLine[line];
+          const pct = d.target > 0 ? Math.round((d.dispatched / d.target) * 100) : 0;
+          const pctColor = pct >= 90 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : pct > 0 ? 'var(--orange)' : 'var(--t3)';
+          return `<tr>
+            <td style="color:var(--yellow);font-weight:700">${line}</td>
+            <td class="td-mono">${d.runs}</td>
+            <td style="font-size:11px;color:var(--t2)">${[...d.products].join(', ') || '—'}</td>
+            <td class="td-mono">${fmt(d.target)}</td>
+            <td class="td-mono" style="color:var(--green)">${fmt(d.pass)}</td>
+            <td class="td-mono" style="color:var(--text)">${fmt(d.dispatched)}</td>
+            <td class="td-mono" style="color:#a78bfa">${fmt(d.rtr)}</td>
+            <td class="td-mono" style="color:#38bdf8">${fmt(d.rte)}</td>
+            <td class="td-mono" style="color:${pctColor};font-weight:700">${pct}%</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
 }
 
 document.getElementById('returnsActionModal').addEventListener('click', function(e) {
