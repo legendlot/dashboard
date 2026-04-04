@@ -1235,6 +1235,11 @@ function renderLineCards(lines) {
         </div>
         <div class="lc-bottom" style="border-top:none;padding-top:4px;margin-top:0">
           <span>Target: ${fmt(l.target_qty)} · Pass rate: ${passRate}%</span>
+          <span style="color:var(--t3)">
+            ${l.first_scan_at
+              ? '⏱ First scan ' + new Date(l.first_scan_at).toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata'})
+              : 'No scans yet'}
+          </span>
         </div>
       </div>
     `;
