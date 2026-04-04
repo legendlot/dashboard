@@ -1130,36 +1130,40 @@ function renderExecRuns(runs, date) {
     `).join('');
   }
 
-  const thead = `
-    <thead>
+  function sectionRow(label, dotColor) {
+    return `
       <tr>
-        <th>Run</th><th>Product</th><th>Line</th><th>Date</th>
-        <th>Target</th><th>Retail</th><th>Ecom</th><th>Status</th>
+        <td colspan="8" style="padding:9px 14px;background:var(--s3);border-bottom:1px solid var(--b1);border-top:1px solid var(--b1);">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:var(--t3);">
+            <span style="width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0;display:inline-block"></span>
+            ${label}
+          </span>
+        </td>
       </tr>
-    </thead>
-  `;
+    `;
+  }
 
-  let html = '';
-
+  let tbody = '';
   if (active.length) {
-    html += `
-      <div class="runs-section-label active-label">
-        <span class="dot"></span>Active Today
-      </div>
-      <table>${thead}<tbody>${runsRows(active)}</tbody></table>
-    `;
+    tbody += sectionRow('Active Today', 'var(--green)');
+    tbody += runsRows(active);
   }
-
   if (upcoming.length) {
-    html += `
-      <div class="runs-section-label upcoming-label" style="${active.length ? 'border-top:1px solid var(--b1)' : ''}">
-        <span class="dot"></span>Upcoming
-      </div>
-      <table>${thead}<tbody>${runsRows(upcoming)}</tbody></table>
-    `;
+    tbody += sectionRow('Upcoming', 'var(--blue)');
+    tbody += runsRows(upcoming);
   }
 
-  el.innerHTML = html;
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Run</th><th>Product</th><th>Line</th><th>Date</th>
+          <th>Target</th><th>Retail</th><th>Ecom</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>${tbody}</tbody>
+    </table>
+  `;
 }
 
 // ── LINES VIEW ───────────────────────────────────────────────
