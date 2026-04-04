@@ -1711,27 +1711,30 @@ function onScanSearch() {
 async function loadScans() {
   const el = document.getElementById('scansTable');
   el.innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
-  document.getElementById('scanSummaryCards').innerHTML = '';
 
   const date       = document.getElementById('dateFrom')?.value || todayISO();
   const showVoided = document.getElementById('scanShowVoided')?.checked;
 
-  // Fetch all scans for the date — using getScanHistory isn't right,
-  // so we add a new endpoint. For now, fetch via direct Supabase query
-  // using the worker's existing api() wrapper pattern won't work without
-  // a new endpoint — use the existing pattern with a date filter param.
+  // Fetch display rows and summary counts in parallel
+  // Summary uses a separate lightweight query (activity + voided only) with no display limit
   const qs = new URLSearchParams({ action: 'getAllScans', date });
-  const res = await fetch(API + '?' + qs.toString(), {
-    headers: { 'Authorization': 'Bearer ' + token }
-  });
-  const data = await res.json();
-  if (!data.ok) {
-    el.innerHTML = '<div class="empty">Failed to load scans: ' + (data.error || 'Unknown error') + '</div>';
+  const qsSummary = new URLSearchParams({ action: 'getAllScans', date, summary_only: 'true' });
+
+  const [res, summaryRes] = await Promise.all([
+    fetch(API + '?' + qs.toString(), { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.json()),
+    fetch(API + '?' + qsSummary.toString(), { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.json()),
+  ]);
+
+  if (!res.ok) {
+    el.innerHTML = '<div class="empty">Failed to load scans: ' + (res.error || 'Unknown error') + '</div>';
     return;
   }
 
-  allScans = data.data || [];
-  renderScanSummary(allScans);
+  allScans = res.data || [];
+
+  // Use summary counts if available (accurate regardless of display limit), else fall back to allScans
+  const summaryData = (summaryRes.ok && summaryRes.data) ? summaryRes.data : allScans;
+  renderScanSummary(summaryData);
   renderScans();
 }
 
