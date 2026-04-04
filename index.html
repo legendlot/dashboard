@@ -1715,14 +1715,12 @@ async function loadScans() {
   const date       = document.getElementById('dateFrom')?.value || todayISO();
   const showVoided = document.getElementById('scanShowVoided')?.checked;
 
-  // Fetch display rows and summary counts in parallel
-  // Summary uses a separate lightweight query (activity + voided only) with no display limit
-  const qs = new URLSearchParams({ action: 'getAllScans', date });
-  const qsSummary = new URLSearchParams({ action: 'getAllScans', date, summary_only: 'true' });
-
+  // Fetch display rows and accurate aggregate summary in parallel
   const [res, summaryRes] = await Promise.all([
-    fetch(API + '?' + qs.toString(), { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.json()),
-    fetch(API + '?' + qsSummary.toString(), { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.json()),
+    fetch(API + '?' + new URLSearchParams({ action: 'getAllScans', date }).toString(),
+      { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.json()),
+    fetch(API + '?' + new URLSearchParams({ action: 'getScanSummary', date }).toString(),
+      { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.json()),
   ]);
 
   if (!res.ok) {
@@ -1731,29 +1729,32 @@ async function loadScans() {
   }
 
   allScans = res.data || [];
-
-  // Use summary counts if available (accurate regardless of display limit), else fall back to allScans
-  const summaryData = (summaryRes.ok && summaryRes.data) ? summaryRes.data : allScans;
-  renderScanSummary(summaryData);
+  renderScanSummary(summaryRes.ok ? summaryRes.data : null);
   renderScans();
 }
 
-function renderScanSummary(scans) {
-  const counts = {};
-  const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','RTO_IN'];
-  activities.forEach(a => { counts[a] = 0; });
-  scans.filter(s => !s.voided).forEach(s => {
-    if (counts[s.activity] !== undefined) counts[s.activity]++;
-    else counts[s.activity] = (counts[s.activity]||0)+1;
-  });
-
+function renderScanSummary(summary) {
   const colorMap = {
     INW:'#60a5fa', QC_PASS:'var(--green)', QC_FAIL:'var(--red)',
     WKS_IN:'#a78bfa', WKS_OUT:'#a78bfa', RTO_IN:'var(--orange)',
   };
+  const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','RTO_IN'];
 
-  const total = scans.filter(s => !s.voided).length;
-  const voided = scans.filter(s => s.voided).length;
+  // If RPC summary available use it, else fall back to counting allScans
+  let total, voided, counts = {};
+  if (summary && typeof summary === 'object' && summary.total !== undefined) {
+    total  = summary.total  || 0;
+    voided = summary.voided || 0;
+    activities.forEach(a => { counts[a] = summary[a] || 0; });
+  } else {
+    activities.forEach(a => { counts[a] = 0; });
+    allScans.filter(s => !s.voided).forEach(s => {
+      if (counts[s.activity] !== undefined) counts[s.activity]++;
+      else counts[s.activity] = (counts[s.activity] || 0) + 1;
+    });
+    total  = allScans.filter(s => !s.voided).length;
+    voided = allScans.filter(s =>  s.voided).length;
+  }
 
   const el = document.getElementById('scanSummaryCards');
   el.innerHTML = `
