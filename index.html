@@ -481,6 +481,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div class="tab" data-tab="upc" onclick="switchTab('upc')">UPC Generator</div>
     <div class="tab" data-tab="scans" onclick="switchTab('scans')">Scans</div>
     <div class="tab" data-tab="corrections" onclick="switchTab('corrections')">Corrections</div>
+    <div class="tab" data-tab="alerts" onclick="switchTab('alerts')">Alerts <span id="alertsBadge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle"></span></div>
   </div>
 
   <div class="datebar">
@@ -687,9 +688,61 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
   </div>
 
+  <!-- ALERTS TAB -->
+  <div id="tab-alerts" class="content" style="display:none">
+
+    <div class="cards" id="alertsCards" style="margin-bottom:4px">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="alertsStatusFilters">
+        <button class="scan-filter-btn active" data-f="" onclick="setAlertsFilter('')">All</button>
+        <button class="scan-filter-btn" data-f="unacked" onclick="setAlertsFilter('unacked')">Unacknowledged</button>
+        <button class="scan-filter-btn" data-f="acked" onclick="setAlertsFilter('acked')">Acknowledged</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+        <select id="alertsLineFilter" class="date-input" onchange="loadAlerts(getDateFrom(),getDateTo())" style="font-size:11px">
+          <option value="">All Lines</option>
+          <option value="L1">L1</option>
+          <option value="L2">L2</option>
+          <option value="L3">L3</option>
+        </select>
+        <select id="alertsStationFilter" class="date-input" onchange="loadAlerts(getDateFrom(),getDateTo())" style="font-size:11px">
+          <option value="">All Stations</option>
+          <option value="INW">INW</option>
+          <option value="QC_PASS">QC Pass</option>
+          <option value="QC_FAIL">QC Fail</option>
+          <option value="WKS">Workshop</option>
+          <option value="PKG">Packaging</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-wrap" id="alertsTable">
+      <div class="loading"><div class="spinner"></div> Loading...</div>
+    </div>
+
+  </div>
+
 </div>
 
-<!-- VOID MODAL -->
+<!-- ACKNOWLEDGE MODAL -->
+<div class="modal-overlay" id="ackModal">
+  <div class="modal-box">
+    <div class="modal-title" style="color:var(--orange)">✓ Acknowledge Violation</div>
+    <div class="modal-meta" id="ackMeta" style="line-height:1.6;white-space:normal;word-break:break-word">—</div>
+    <div class="modal-field">
+      <div class="modal-label">Note <span style="color:var(--t3);font-size:9px">(optional)</span></div>
+      <textarea class="modal-textarea" id="ackNote" placeholder="Optional — describe action taken or resolution…"></textarea>
+    </div>
+    <div class="modal-err" id="ackErr"></div>
+    <div class="modal-footer">
+      <button class="modal-cancel" onclick="closeAckModal()">Cancel</button>
+      <button class="modal-confirm" style="background:var(--orange);color:#000" onclick="submitAck()">ACKNOWLEDGE</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="voidModal">
   <div class="modal-box">
     <div class="modal-title" style="color:var(--red)">⚠ Void Scan — Tier 2</div>
@@ -857,7 +910,7 @@ function updateClock() {
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  ['exec','lines','qc','runs','upc','scans','corrections'].forEach(t => {
+  ['exec','lines','qc','runs','upc','scans','corrections','alerts'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
   const showDateBar = tab !== 'upc' && tab !== 'scans' && tab !== 'corrections';
@@ -865,8 +918,8 @@ function switchTab(tab) {
   if (showDateBar) {
     const from = getDateFrom(), to = getDateTo();
     const isRange = from !== to;
-    document.getElementById('dateToLabel').style.display = isRange || tab === 'qc' || tab === 'runs' ? '' : 'none';
-    document.getElementById('dateTo').style.display      = isRange || tab === 'qc' || tab === 'runs' ? '' : 'none';
+    document.getElementById('dateToLabel').style.display = isRange || tab === 'qc' || tab === 'runs' || tab === 'alerts' ? '' : 'none';
+    document.getElementById('dateTo').style.display      = isRange || tab === 'qc' || tab === 'runs' || tab === 'alerts' ? '' : 'none';
   }
   loadTab(tab);
 }
@@ -892,6 +945,7 @@ async function loadTab(tab) {
     if (tab === 'upc')         await loadUpcGen();
     if (tab === 'scans')       await loadScans();
     if (tab === 'corrections') await loadCorrections();
+    if (tab === 'alerts')      await loadAlerts(from, to);
     document.getElementById('lastRefresh').textContent =
       'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
   } catch(e) {
@@ -1945,6 +1999,198 @@ document.getElementById('voidModal').addEventListener('click', function(e) {
 document.getElementById('amendModal').addEventListener('click', function(e) {
   if (e.target === this) closeAmendModal();
 });
+document.getElementById('ackModal').addEventListener('click', function(e) {
+  if (e.target === this) closeAckModal();
+});
+
+// ── ALERTS TAB ───────────────────────────────────────────────
+let alertsFilter    = '';
+let pendingAckId    = null;
+window._alertRows   = [];
+
+function setAlertsFilter(f) {
+  alertsFilter = f;
+  document.querySelectorAll('#alertsStatusFilters .scan-filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.f === f);
+  });
+  renderViolationsTable(window._alertRows);
+}
+
+async function loadAlerts(from, to) {
+  document.getElementById('alertsTable').innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
+  document.getElementById('alertsCards').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  const line    = document.getElementById('alertsLineFilter')?.value    || '';
+  const station = document.getElementById('alertsStationFilter')?.value || '';
+
+  const params = { from, to };
+  if (line)    params.line    = line;
+  if (station) params.station = station;
+
+  const [vData, sData] = await Promise.all([
+    api('getViolations',      params),
+    api('getViolationSummary', { date: from }),
+  ]);
+
+  if (sData.ok) renderAlertCards(sData.data);
+  if (!vData.ok) {
+    document.getElementById('alertsTable').innerHTML = `<div class="empty"><span class="empty-icon">⚠</span>${vData.error || 'Failed to load'}</div>`;
+    return;
+  }
+
+  window._alertRows = vData.data || [];
+  renderViolationsTable(window._alertRows);
+
+  // Update badge
+  const unack = (vData.data || []).filter(v => !v.acknowledged_at).length;
+  const badge = document.getElementById('alertsBadge');
+  if (unack > 0) {
+    badge.textContent = unack;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function renderAlertCards(s) {
+  const unack = s.unacknowledged || 0;
+  document.getElementById('alertsCards').innerHTML = `
+    <div class="card ${s.total_today > 0 ? 'warn' : ''}">
+      <div class="card-label">Total Today</div>
+      <div class="card-val ${s.total_today > 0 ? 'yellow' : ''}">${s.total_today || 0}</div>
+      <div class="card-sub">Scan violations</div>
+    </div>
+    <div class="card ${unack > 0 ? 'bad' : 'ok'}">
+      <div class="card-label">Unacknowledged</div>
+      <div class="card-val ${unack > 0 ? 'red' : 'green'}">${unack}</div>
+      <div class="card-sub">${unack > 0 ? 'Needs attention' : 'All clear'}</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Worst Line</div>
+      <div class="card-val" style="font-size:22px">${s.worst_line || '—'}</div>
+      <div class="card-sub">Most violations today</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Worst Station</div>
+      <div class="card-val" style="font-size:16px;padding-top:4px">${s.worst_station || '—'}</div>
+      <div class="card-sub">Most violations today</div>
+    </div>
+  `;
+}
+
+function renderViolationsTable(rows) {
+  const el = document.getElementById('alertsTable');
+
+  let filtered = rows;
+  if (alertsFilter === 'unacked') filtered = rows.filter(r => !r.acknowledged_at);
+  if (alertsFilter === 'acked')   filtered = rows.filter(r =>  r.acknowledged_at);
+
+  if (!filtered.length) {
+    el.innerHTML = `<div class="empty"><span class="empty-icon">${alertsFilter === 'unacked' ? '✅' : '📋'}</span>${alertsFilter === 'unacked' ? 'No unacknowledged violations' : 'No violations found'}</div>`;
+    return;
+  }
+
+  const isMahesh = (userRole || '').toLowerCase().includes('mahesh') || (userName || '').toLowerCase().includes('mahesh');
+
+  el.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Line</th>
+          <th>Station</th>
+          <th>Operator</th>
+          <th>UPC</th>
+          <th>Violation</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map((v, i) => {
+          const ts     = v.timestamp ? new Date(v.timestamp).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true }) : '—';
+          const date   = v.timestamp ? new Date(v.timestamp).toLocaleDateString('en-IN', { day:'numeric', month:'short' }) : '';
+          const isAck  = !!v.acknowledged_at;
+          const ackTs  = isAck ? new Date(v.acknowledged_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true }) : '';
+          const stationColor = {INW:'var(--blue)',QC_PASS:'var(--green)',QC_FAIL:'var(--red)',WKS:'var(--orange)',PKG:'#8b5cf6'}[v.station] || 'var(--t3)';
+          return `
+          <tr style="opacity:${isAck ? '0.45' : '1'}">
+            <td style="white-space:nowrap">
+              <div style="font-size:11px">${ts}</div>
+              <div style="font-size:9px;color:var(--t3)">${date}</div>
+            </td>
+            <td><span style="font-weight:700;color:var(--yellow)">${v.line || '—'}</span></td>
+            <td><span style="font-size:10px;font-weight:700;color:${stationColor};letter-spacing:.06em">${v.station || '—'}</span></td>
+            <td style="font-size:11px;color:var(--t2)">${v.operator_name || '—'}</td>
+            <td style="font-family:var(--mono);font-size:10px;color:var(--t2)">${v.upc || '—'}</td>
+            <td style="max-width:320px">
+              <div style="font-size:11px;color:${isAck ? 'var(--t3)' : 'var(--text)'};line-height:1.4">${v.error_message || '—'}</div>
+              ${isAck && v.acknowledgement_note ? `<div style="font-size:10px;color:var(--t3);margin-top:3px;font-style:italic">"${v.acknowledgement_note}"</div>` : ''}
+            </td>
+            <td style="white-space:nowrap">
+              ${isAck
+                ? `<span style="font-size:9px;color:var(--green);letter-spacing:.08em;font-weight:700">✓ ACK</span><div style="font-size:9px;color:var(--t3)">${ackTs}</div>`
+                : `<span style="font-size:9px;color:var(--red);letter-spacing:.08em;font-weight:700">● OPEN</span>`
+              }
+            </td>
+            <td>
+              ${!isAck && !isMahesh
+                ? `<button class="btn-sm" style="background:var(--orange);color:#000;border:none;border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:.06em;cursor:pointer;font-family:var(--mono)" onclick="openAckModal('${v.id}', ${i})">ACK</button>`
+                : ''
+              }
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── ACKNOWLEDGE MODAL ────────────────────────────────────────
+function openAckModal(violationId, rowIdx) {
+  pendingAckId = violationId;
+  const v = window._alertRows.find(r => r.id === violationId);
+  document.getElementById('ackMeta').innerHTML = v
+    ? `<strong style="color:var(--orange)">${v.station || '?'}</strong> &nbsp;·&nbsp; ${v.line || '?'} &nbsp;·&nbsp; ${v.upc || '?'}<br><span style="font-size:11px;color:var(--t2)">${v.error_message || ''}</span>`
+    : violationId;
+  document.getElementById('ackNote').value    = '';
+  document.getElementById('ackErr').textContent = '';
+  document.getElementById('ackModal').classList.add('show');
+}
+
+function closeAckModal() {
+  pendingAckId = null;
+  document.getElementById('ackModal').classList.remove('show');
+}
+
+async function submitAck() {
+  if (!pendingAckId) return;
+  const note  = document.getElementById('ackNote').value.trim();
+  const errEl = document.getElementById('ackErr');
+  errEl.textContent = '';
+
+  const btn = document.querySelector('#ackModal .modal-confirm');
+  btn.textContent = 'Saving...'; btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API}?action=_`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ action: 'acknowledgeViolation', data: { violation_id: pendingAckId, note } })
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      errEl.textContent = data.error || 'Failed to acknowledge';
+      return;
+    }
+    closeAckModal();
+    await loadAlerts(getDateFrom(), getDateTo());
+  } catch(e) {
+    errEl.textContent = 'Connection error';
+  } finally {
+    btn.textContent = 'ACKNOWLEDGE'; btn.disabled = false;
+  }
+}
 </script>
 </body>
 </html>
