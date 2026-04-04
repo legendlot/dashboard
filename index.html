@@ -482,6 +482,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div class="tab" data-tab="scans" onclick="switchTab('scans')">Scans</div>
     <div class="tab" data-tab="corrections" onclick="switchTab('corrections')">Corrections</div>
     <div class="tab" data-tab="alerts" onclick="switchTab('alerts')">Alerts <span id="alertsBadge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle"></span></div>
+    <div class="tab" data-tab="returns" onclick="switchTab('returns')">Returns <span id="returnsBadge" style="display:none;background:var(--orange);color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle"></span></div>
   </div>
 
   <div class="datebar">
@@ -725,6 +726,44 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
   </div>
 
+  <!-- RETURNS QUEUE TAB -->
+  <div id="tab-returns" class="content" style="display:none">
+
+    <div class="cards" id="returnsCards" style="margin-bottom:4px">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="returnsActionFilters">
+        <button class="scan-filter-btn active" data-f="" onclick="setReturnsFilter('')">All Pending</button>
+        <button class="scan-filter-btn" data-f="rtd_direct" onclick="setReturnsFilter('rtd_direct')">RTD Direct</button>
+        <button class="scan-filter-btn" data-f="wks_repair" onclick="setReturnsFilter('wks_repair')">Workshop</button>
+      </div>
+      <button class="date-btn" style="margin-left:auto" onclick="loadReturns()">↻ Refresh</button>
+    </div>
+
+    <div class="table-wrap" id="returnsTable">
+      <div class="loading"><div class="spinner"></div> Loading...</div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- RETURNS ACTION MODAL -->
+<div class="modal-overlay" id="returnsActionModal">
+  <div class="modal-box">
+    <div class="modal-title" id="returnsActionTitle" style="color:var(--orange)">Mark Return Actioned</div>
+    <div class="modal-meta" id="returnsActionMeta">—</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin:14px 0">
+      <button style="background:var(--green);color:#000;width:100%;padding:14px;font-size:12px;letter-spacing:.08em;cursor:pointer;border:none;border-radius:6px;font-family:'JetBrains Mono',monospace;font-weight:700" onclick="submitReturnsAction('completed')">✓ UNIT ACTIONED — MARK COMPLETE</button>
+      <button style="background:var(--surface2);color:var(--red);border:2px solid var(--red);width:100%;padding:14px;font-size:12px;letter-spacing:.08em;cursor:pointer;border-radius:6px;font-family:'JetBrains Mono',monospace;font-weight:700" onclick="submitReturnsAction('scrapped')">✗ UNIT SCRAPPED</button>
+    </div>
+    <div class="modal-err" id="returnsActionErr"></div>
+    <div class="modal-footer">
+      <button class="modal-cancel" onclick="closeReturnsActionModal()">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <!-- ACKNOWLEDGE MODAL -->
@@ -910,10 +949,10 @@ function updateClock() {
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  ['exec','lines','qc','runs','upc','scans','corrections','alerts'].forEach(t => {
+  ['exec','lines','qc','runs','upc','scans','corrections','alerts','returns'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
-  const showDateBar = tab !== 'upc' && tab !== 'scans' && tab !== 'corrections';
+  const showDateBar = tab !== 'upc' && tab !== 'scans' && tab !== 'corrections' && tab !== 'returns';
   document.querySelector('.datebar').style.display = showDateBar ? '' : 'none';
   if (showDateBar) {
     const from = getDateFrom(), to = getDateTo();
@@ -946,6 +985,7 @@ async function loadTab(tab) {
     if (tab === 'scans')       await loadScans();
     if (tab === 'corrections') await loadCorrections();
     if (tab === 'alerts')      await loadAlerts(from, to);
+    if (tab === 'returns')     await loadReturns();
     document.getElementById('lastRefresh').textContent =
       'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
   } catch(e) {
@@ -2191,6 +2231,181 @@ async function submitAck() {
     btn.textContent = 'ACKNOWLEDGE'; btn.disabled = false;
   }
 }
+
+// ── RETURNS QUEUE ─────────────────────────────────────────────
+let returnsFilter   = '';
+let pendingReturnId = null;
+window._returnRows  = [];
+
+function setReturnsFilter(f) {
+  returnsFilter = f;
+  document.querySelectorAll('#returnsActionFilters .scan-filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.f === f);
+  });
+  renderReturnsTable(window._returnRows);
+}
+
+async function loadReturns() {
+  document.getElementById('returnsTable').innerHTML =
+    '<div class="loading"><div class="spinner"></div> Loading...</div>';
+  document.getElementById('returnsCards').innerHTML =
+    '<div class="loading"><div class="spinner"></div></div>';
+
+  const r = await api('getReturnQueue');
+  if (!r.ok) {
+    document.getElementById('returnsTable').innerHTML =
+      `<div class="empty"><span style="font-size:24px">📦</span><br>${r.error || 'Failed to load'}</div>`;
+    return;
+  }
+
+  window._returnRows = r.data || [];
+  renderReturnsCards(window._returnRows);
+  renderReturnsTable(window._returnRows);
+
+  // Update badge — pending count
+  const badge = document.getElementById('returnsBadge');
+  if (window._returnRows.length > 0) {
+    badge.textContent = window._returnRows.length;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function renderReturnsCards(rows) {
+  const rtd  = rows.filter(r => r.action === 'rtd_direct').length;
+  const wks  = rows.filter(r => r.action === 'wks_repair').length;
+  const udr  = rows.filter(r => r.return_category === 'UDR').length;
+  const cxr  = rows.filter(r => r.return_category === 'CXR').length;
+  const brv  = rows.filter(r => r.return_category === 'BRV').length;
+
+  document.getElementById('returnsCards').innerHTML = `
+    <div class="card ${rows.length > 0 ? 'warn' : ''}">
+      <div class="card-label">Pending Action</div>
+      <div class="card-val ${rows.length > 0 ? 'yellow' : ''}">${rows.length}</div>
+      <div class="card-sub">Total in queue</div>
+    </div>
+    <div class="card ok">
+      <div class="card-label">RTD Direct</div>
+      <div class="card-val ${rtd > 0 ? 'green' : ''}">${rtd}</div>
+      <div class="card-sub">Scan at RTO_IN</div>
+    </div>
+    <div class="card ${wks > 0 ? 'warn' : ''}">
+      <div class="card-label">Workshop</div>
+      <div class="card-val ${wks > 0 ? 'yellow' : ''}">${wks}</div>
+      <div class="card-sub">Send to WKS</div>
+    </div>
+    <div class="card">
+      <div class="card-label">By Category</div>
+      <div class="card-val" style="font-size:16px;padding-top:4px">${udr} UDR</div>
+      <div class="card-sub">${cxr} CXR · ${brv} BRV</div>
+    </div>
+  `;
+}
+
+function renderReturnsTable(rows) {
+  const el = document.getElementById('returnsTable');
+
+  let filtered = rows;
+  if (returnsFilter) filtered = rows.filter(r => r.action === returnsFilter);
+
+  if (!filtered.length) {
+    el.innerHTML = `<div class="empty"><span style="font-size:28px">✅</span><br>${
+      returnsFilter ? 'No ' + returnsFilter.replace('_',' ') + ' items pending'
+                    : 'No returns pending action'
+    }</div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Return Unit</th>
+          <th>Category</th>
+          <th>Product</th>
+          <th>Action Required</th>
+          <th>Car UPC</th>
+          <th>Remote UPC</th>
+          <th>Handed Off</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map(r => {
+          const actionColor = r.action === 'rtd_direct' ? 'var(--green)' : 'var(--orange)';
+          const actionLabel = r.action === 'rtd_direct' ? '📦 RTD DIRECT' : '🔧 WORKSHOP';
+          const catBadge = {UDR:'ok', CXR:'warn', BRV:'blue'}[r.return_category] || '';
+          const ts = r.handed_off_at
+            ? new Date(r.handed_off_at).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',hour12:true})
+            : '—';
+          return `
+          <tr>
+            <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--yellow)">${r.return_unit_id || '—'}</td>
+            <td><span class="card ${catBadge}" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;display:inline-block">${r.return_category || '—'}</span></td>
+            <td style="font-size:12px">${r.product || '—'}</td>
+            <td><span style="font-size:11px;font-weight:700;color:${actionColor};letter-spacing:.06em">${actionLabel}</span></td>
+            <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t2)">${r.car_upc || '—'}</td>
+            <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t2)">${r.remote_upc || '—'}</td>
+            <td style="font-size:10px;color:var(--t3)">${ts}</td>
+            <td>
+              <button style="background:var(--orange);color:#000;border:none;border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:.06em;cursor:pointer;font-family:'JetBrains Mono',monospace"
+                onclick="openReturnsActionModal('${r.return_unit_id}','${(r.product||'').replace(/'/g,"\\'")}','${r.action}','${r.return_category||''}')">
+                ACTION
+              </button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── RETURNS ACTION MODAL ──────────────────────────────────────
+function openReturnsActionModal(unitId, product, action, category) {
+  pendingReturnId = unitId;
+  const actionLabel = action === 'rtd_direct' ? 'RTD Direct — scan at RTO_IN station' : 'Workshop Repair — send to WKS';
+  document.getElementById('returnsActionTitle').textContent = action === 'rtd_direct'
+    ? '📦 RTD Direct Return' : '🔧 Workshop Repair Return';
+  document.getElementById('returnsActionMeta').innerHTML =
+    `<strong>${unitId}</strong> &nbsp;·&nbsp; ${product} &nbsp;·&nbsp; <span style="color:var(--t2)">${category}</span><br>
+     <span style="font-size:11px;color:var(--t2)">${actionLabel}</span>`;
+  document.getElementById('returnsActionErr').textContent = '';
+  document.getElementById('returnsActionModal').classList.add('show');
+}
+
+function closeReturnsActionModal() {
+  pendingReturnId = null;
+  document.getElementById('returnsActionModal').classList.remove('show');
+}
+
+async function submitReturnsAction(outcome) {
+  if (!pendingReturnId) return;
+  const errEl = document.getElementById('returnsActionErr');
+  errEl.textContent = '';
+
+  try {
+    const res = await fetch(`${API}?action=_`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ action: 'linkProductionScan', data: {
+        return_unit_id: pendingReturnId,
+        scan_id:        null,
+        outcome,
+      }})
+    });
+    const data = await res.json();
+    if (!data.ok) { errEl.textContent = data.error || 'Failed'; return; }
+    closeReturnsActionModal();
+    await loadReturns();
+  } catch(e) {
+    errEl.textContent = 'Connection error';
+  }
+}
+
+document.getElementById('returnsActionModal').addEventListener('click', function(e) {
+  if (e.target === this) closeReturnsActionModal();
+});
 </script>
 </body>
 </html>
