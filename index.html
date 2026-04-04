@@ -241,6 +241,18 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 .status-badge.issued{background:rgba(242,205,26,.15);color:var(--yellow);border:1px solid rgba(242,205,26,.3)}
 .status-badge.progress{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
 
+/* ── RUNS SECTION LABELS inside table-wrap ── */
+.runs-section-label{
+  font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:var(--t3);
+  padding:10px 14px 8px;background:var(--s3);border-bottom:1px solid var(--b1);
+  display:flex;align-items:center;gap:8px;
+}
+.runs-section-label .dot{
+  width:6px;height:6px;border-radius:50%;flex-shrink:0;
+}
+.runs-section-label.active-label .dot{background:var(--green)}
+.runs-section-label.upcoming-label .dot{background:var(--blue)}
+
 /* ── HOURLY CHART ── */
 .chart-wrap{background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:16px}
 .chart-title{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--t3);margin-bottom:14px}
@@ -368,8 +380,6 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 .bs-received{color:var(--green)}
 .bs-fully_applied{color:var(--t3)}
 
-/* ── PRINT STYLES ── */
-
 /* ── SCANS TAB ── */
 .scan-filter-btn{
   padding:4px 12px;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
@@ -386,9 +396,6 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 .scan-act-RTR{color:var(--yellow)}
 .scan-act-RTO_IN{color:var(--orange)}
 .scan-voided{opacity:.4;text-decoration:line-through}
-.scan-act-PKG{color:#8b5cf6}
-.scan-act-RTE{color:#0ea5e9}
-.scan-act-RTR{color:var(--yellow)}
 
 /* ── CORRECTIONS TAB ── */
 .corr-btn{
@@ -438,13 +445,13 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 .modal-confirm.red{background:var(--red);color:#fff}
 .modal-confirm.yellow{background:var(--yellow);color:#000}
 .modal-err{font-size:11px;color:var(--red);min-height:16px}
-/* ── CORRECTIONS SCROLL FIX ── */
+
+/* ── SCROLL FIXES ── */
 #tab-corrections{display:flex;flex-direction:column}
 #tab-corrections .table-wrap{flex:1;min-height:0;overflow-y:auto}
 #tab-scans .table-wrap{flex:1;min-height:0;overflow-y:auto}
 #tab-alerts .table-wrap{flex:1;min-height:0;overflow-y:auto}
 #tab-returns .table-wrap{flex:1;min-height:0;overflow-y:auto}
-</style>  
 </style>
 </head>
 <body>
@@ -501,14 +508,12 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
   <!-- EXECUTIVE TAB -->
   <div id="tab-exec" class="content">
-
     <div>
       <div class="sec-label">Today at a Glance</div>
       <div class="cards" id="execCards">
         <div class="loading"><div class="spinner"></div> Loading...</div>
       </div>
     </div>
-
     <div>
       <div class="sec-label">Hourly Output — Today</div>
       <div class="chart-wrap">
@@ -523,14 +528,12 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         </div>
       </div>
     </div>
-
     <div>
-      <div class="sec-label">Open Production Runs</div>
+      <div class="sec-label">Production Runs</div>
       <div class="table-wrap" id="execRunsTable">
         <div class="loading"><div class="spinner"></div> Loading...</div>
       </div>
     </div>
-
   </div>
 
   <!-- LINES TAB -->
@@ -583,7 +586,6 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
   <!-- UPC GENERATOR TAB -->
   <div id="tab-upc" class="content" style="display:none">
-
     <div class="upc-gen-panel">
       <div class="sec-label">Generate New Batch</div>
       <div class="upc-form">
@@ -612,7 +614,6 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
       </div>
       <div id="upcGenStatus" class="upc-status"></div>
     </div>
-
     <div>
       <div class="sec-label" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <span>Batch History</span>
@@ -622,12 +623,10 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         <div class="loading"><div class="spinner"></div> Loading...</div>
       </div>
     </div>
-
   </div>
 
   <!-- SCANS TAB -->
   <div id="tab-scans" class="content" style="display:none">
-
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
       <div style="display:flex;gap:6px;flex-wrap:wrap" id="scanActivityFilters">
         <button class="scan-filter-btn active" data-activity="" onclick="setScanFilter('')">All</button>
@@ -648,18 +647,14 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         </label>
       </div>
     </div>
-
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:16px" id="scanSummaryCards"></div>
-
     <div class="table-wrap" id="scansTable">
       <div class="loading"><div class="spinner"></div> Loading...</div>
     </div>
-
   </div>
 
   <!-- CORRECTIONS TAB -->
   <div id="tab-corrections" class="content" style="display:none">
-
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="scan-filter-btn active" data-activity="" onclick="setCorrFilter('')">All</button>
@@ -680,25 +675,20 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         </label>
       </div>
     </div>
-
     <div style="font-size:10px;color:var(--t3);margin-bottom:12px;padding:8px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:6px;line-height:1.6">
       <strong style="color:var(--t2)">Tier 2 Void</strong> — Supervisor can void scans from the current shift only. Reason required.<br>
       <strong style="color:var(--t2)">Tier 3 Amend</strong> — Manager can correct line, operator, or notes on any scan. Immutable audit trail created.
     </div>
-
     <div class="table-wrap" id="corrTable">
       <div class="loading"><div class="spinner"></div> Loading...</div>
     </div>
-
   </div>
 
   <!-- ALERTS TAB -->
   <div id="tab-alerts" class="content" style="display:none">
-
     <div class="cards" id="alertsCards" style="margin-bottom:4px">
       <div class="loading"><div class="spinner"></div></div>
     </div>
-
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
       <div style="display:flex;gap:6px;flex-wrap:wrap" id="alertsStatusFilters">
         <button class="scan-filter-btn active" data-f="" onclick="setAlertsFilter('')">All</button>
@@ -722,20 +712,16 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         </select>
       </div>
     </div>
-
     <div class="table-wrap" id="alertsTable">
       <div class="loading"><div class="spinner"></div> Loading...</div>
     </div>
-
   </div>
 
   <!-- RETURNS QUEUE TAB -->
   <div id="tab-returns" class="content" style="display:none">
-
     <div class="cards" id="returnsCards" style="margin-bottom:4px">
       <div class="loading"><div class="spinner"></div></div>
     </div>
-
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
       <div style="display:flex;gap:6px;flex-wrap:wrap" id="returnsActionFilters">
         <button class="scan-filter-btn active" data-f="" onclick="setReturnsFilter('')">All Pending</button>
@@ -744,11 +730,9 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
       </div>
       <button class="date-btn" style="margin-left:auto" onclick="loadReturns()">↻ Refresh</button>
     </div>
-
     <div class="table-wrap" id="returnsTable">
       <div class="loading"><div class="spinner"></div> Loading...</div>
     </div>
-
   </div>
 
 </div>
@@ -760,7 +744,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div class="modal-meta" id="returnsActionMeta">—</div>
     <div style="display:flex;flex-direction:column;gap:10px;margin:14px 0">
       <button style="background:var(--green);color:#000;width:100%;padding:14px;font-size:12px;letter-spacing:.08em;cursor:pointer;border:none;border-radius:6px;font-family:'JetBrains Mono',monospace;font-weight:700" onclick="submitReturnsAction('completed')">✓ UNIT ACTIONED — MARK COMPLETE</button>
-      <button style="background:var(--surface2);color:var(--red);border:2px solid var(--red);width:100%;padding:14px;font-size:12px;letter-spacing:.08em;cursor:pointer;border-radius:6px;font-family:'JetBrains Mono',monospace;font-weight:700" onclick="submitReturnsAction('scrapped')">✗ UNIT SCRAPPED</button>
+      <button style="background:var(--s3);color:var(--red);border:2px solid var(--red);width:100%;padding:14px;font-size:12px;letter-spacing:.08em;cursor:pointer;border-radius:6px;font-family:'JetBrains Mono',monospace;font-weight:700" onclick="submitReturnsAction('scrapped')">✗ UNIT SCRAPPED</button>
     </div>
     <div class="modal-err" id="returnsActionErr"></div>
     <div class="modal-footer">
@@ -785,6 +769,8 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     </div>
   </div>
 </div>
+
+<!-- VOID MODAL -->
 <div class="modal-overlay" id="voidModal">
   <div class="modal-box">
     <div class="modal-title" style="color:var(--red)">⚠ Void Scan — Tier 2</div>
@@ -831,7 +817,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 <script>
 // ── CONFIG ──────────────────────────────────────────────────
 const API     = 'https://lotopsproxy.afshaan.workers.dev';
-const REFRESH = 30000; // 30 seconds
+const REFRESH = 30000;
 
 // ── STATE ────────────────────────────────────────────────────
 let token     = null;
@@ -929,7 +915,6 @@ function onLoggedIn() {
 
   updateClock();
   setInterval(updateClock, 60000);
-
   startRefresh();
   setTimeout(setContentHeight, 100);
 }
@@ -983,6 +968,7 @@ function setContentHeight() {
   });
 }
 window.addEventListener('resize', setContentHeight);
+
 function startRefresh() {
   loadTab(activeTab);
   refreshTimer = setInterval(() => {
@@ -1024,7 +1010,7 @@ async function loadExec(date) {
   const hourly = data.data.hourly_chart || [];
   renderExecCards(s);
   renderHourlyChart(hourly);
-  renderExecRuns(runs);
+  renderExecRuns(runs, date);
 }
 
 function renderExecCards(s) {
@@ -1091,7 +1077,6 @@ function renderHourlyChart(rows) {
     el.innerHTML = '<div class="empty" style="width:100%"><span class="empty-icon">📊</span>No scan data for selected date</div>';
     return;
   }
-  // Group by hour, sum by line
   const hours = {};
   const lines = new Set();
   rows.forEach(r => {
@@ -1101,10 +1086,7 @@ function renderHourlyChart(rows) {
     hours[h][r.line] = (hours[h][r.line] || 0) + r.unit_count;
   });
   const maxVal = Math.max(...Object.values(hours).map(h => Object.values(h).reduce((a,b) => a+b, 0)), 1);
-  const lineArr = [...lines].sort();
-  const lineColors = { L1: 'l1', L2: 'l2', L3: 'l3' };
 
-  // Show hours 9-18 (shift hours)
   const shiftHours = Array.from({length:10}, (_, i) => i+9);
   el.innerHTML = shiftHours.map(h => {
     const data = hours[h] || {};
@@ -1121,47 +1103,71 @@ function renderHourlyChart(rows) {
   }).join('');
 }
 
-function renderExecRuns(runs) {
-  const el = document.getElementById('execRunsTable');
-  if (!runs.length) {
-    el.innerHTML = '<div class="empty"><span class="empty-icon">🏭</span>No active production runs</div>';
+function renderExecRuns(runs, date) {
+  const el    = document.getElementById('execRunsTable');
+  const today = date || todayStr();
+
+  const active   = runs.filter(r => r.run_date === today && ['Issued', 'In Progress'].includes(r.status));
+  const upcoming = runs.filter(r => r.status === 'Submitted');
+
+  if (!active.length && !upcoming.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">🏭</span>No active or upcoming runs</div>';
     return;
   }
-  el.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Run</th><th>Product</th><th>Line</th><th>Date</th>
-          <th>Target</th><th>Retail</th><th>Ecom</th><th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${runs.map(r => `
-          <tr>
-            <td class="td-mono" style="color:var(--yellow)">${r.run_no}</td>
-            <td style="color:var(--text)">${r.product}</td>
-            <td>${r.line_no || '—'}</td>
-            <td class="td-mono">${r.run_date}</td>
-            <td class="td-mono" style="color:var(--text)">${fmt(r.target_qty)}</td>
-            <td class="td-mono">${fmt(r.target_retail)}</td>
-            <td class="td-mono">${fmt(r.target_ecom)}</td>
-            <td>${statusBadge(r.status)}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
+
+  function runsRows(rows) {
+    return rows.map(r => `
+      <tr>
+        <td class="td-mono" style="color:var(--yellow)">${r.run_no}</td>
+        <td style="color:var(--text)">${r.product}</td>
+        <td>${r.line_no || '—'}</td>
+        <td class="td-mono">${r.run_date}</td>
+        <td class="td-mono" style="color:var(--text)">${fmt(r.target_qty)}</td>
+        <td class="td-mono">${fmt(r.target_retail)}</td>
+        <td class="td-mono">${fmt(r.target_ecom)}</td>
+        <td>${statusBadge(r.status)}</td>
+      </tr>
+    `).join('');
+  }
+
+  const thead = `
+    <thead>
+      <tr>
+        <th>Run</th><th>Product</th><th>Line</th><th>Date</th>
+        <th>Target</th><th>Retail</th><th>Ecom</th><th>Status</th>
+      </tr>
+    </thead>
   `;
+
+  let html = '';
+
+  if (active.length) {
+    html += `
+      <div class="runs-section-label active-label">
+        <span class="dot"></span>Active Today
+      </div>
+      <table>${thead}<tbody>${runsRows(active)}</tbody></table>
+    `;
+  }
+
+  if (upcoming.length) {
+    html += `
+      <div class="runs-section-label upcoming-label" style="${active.length ? 'border-top:1px solid var(--b1)' : ''}">
+        <span class="dot"></span>Upcoming
+      </div>
+      <table>${thead}<tbody>${runsRows(upcoming)}</tbody></table>
+    `;
+  }
+
+  el.innerHTML = html;
 }
 
 // ── LINES VIEW ───────────────────────────────────────────────
 async function loadLines(date) {
-  const [lineData, execData] = await Promise.all([
-    api('getLineView', { date }),
-    api('getLineView', { date }),
-  ]);
-  if (!lineData.ok) return;
-  renderLineCards(lineData.data.lines || []);
-  renderOperatorTable(lineData.data.operator_stats || []);
+  const data = await api('getLineView', { date });
+  if (!data.ok) return;
+  renderLineCards(data.data.lines || []);
+  renderOperatorTable(data.data.operator_stats || []);
 }
 
 function renderLineCards(lines) {
@@ -1293,7 +1299,6 @@ function renderDefects(rows) {
     el.innerHTML = '<div class="empty" style="grid-column:1/-1"><span class="empty-icon">✅</span>No defects logged</div>';
     return;
   }
-  // Aggregate by defect code
   const agg = {};
   rows.forEach(r => {
     if (!agg[r.defect_code]) {
@@ -1421,11 +1426,10 @@ document.getElementById('dateTo').value   = todayStr();
 // ══════════════════════════════════════════════════════
 // UPC GENERATOR
 // ══════════════════════════════════════════════════════
-let upcProducts    = [];   // list from getProductCodes
-let upcComponent   = 'car'; // 'car' | 'remote'
-let currentBatchId = null;  // batch being previewed
+let upcProducts    = [];
+let upcComponent   = 'car';
+let currentBatchId = null;
 
-// ── Load tab ─────────────────────────────────────────
 async function loadUpcGen() {
   await Promise.all([loadUpcProducts(), loadUpcHistory()]);
 }
@@ -1497,7 +1501,6 @@ function renderBatchHistory(batches) {
   `;
 }
 
-// ── Product selection ─────────────────────────────────
 function onUpcProductChange() {
   const sel = document.getElementById('upcProductSelect');
   const opt = sel.options[sel.selectedIndex];
@@ -1513,7 +1516,6 @@ function selectComponent(comp) {
   document.getElementById('upcCompRemote').classList.toggle('active', comp === 'remote');
 }
 
-// ── Generate ──────────────────────────────────────────
 async function generateBatch() {
   const sel      = document.getElementById('upcProductSelect');
   const baseCode = sel.value;
@@ -1551,14 +1553,8 @@ async function generateBatch() {
 
   currentBatchId = b.batch_id;
   loadUpcHistory();
-  // Auto-open print for the new batch
   setTimeout(() => printBatch(b.batch_id), 500);
 }
-
-// ── Print ─────────────────────────────────────────────
-// Approach: generate QR data URLs in memory, then open a clean
-// new window with embedded images and auto-print. Avoids all
-// @media print complexity and canvas printing issues.
 
 async function printBatch(batchId) {
   const res = await fetch(`${API}?action=getUpcBatch&batch_id=${encodeURIComponent(batchId)}&include_rows=true`, {
@@ -1571,16 +1567,10 @@ async function printBatch(batchId) {
   }
 
   const { batch, rows } = data.data;
-
-  // Step 1: generate all QR codes off-screen and extract data URLs
   const qrUrls = await generateQrDataUrls(rows);
-
-  // Step 2: open clean print window with embedded images
   openPrintWindow(batch, rows, qrUrls);
 }
 
-// Generates QR codes for each row and returns data URLs.
-// Uses a temporary off-screen (but visible) container so canvases render.
 async function generateQrDataUrls(rows) {
   return new Promise(resolve => {
     const container = document.createElement('div');
@@ -1593,7 +1583,6 @@ async function generateQrDataUrls(rows) {
       return d;
     });
 
-    // Generate all QR codes synchronously
     divs.forEach((d, i) => {
       try {
         new QRCode(d, {
@@ -1607,7 +1596,6 @@ async function generateQrDataUrls(rows) {
       } catch(e) {}
     });
 
-    // Wait for canvas paint then extract data URLs
     const waitMs = Math.max(600, rows.length * 3);
     setTimeout(() => {
       const urls = divs.map(d => {
@@ -1620,7 +1608,6 @@ async function generateQrDataUrls(rows) {
   });
 }
 
-// Opens a standalone print window with pure HTML + embedded QR images.
 function openPrintWindow(batch, rows, qrUrls) {
   const date = batch.generated_at
     ? new Date(batch.generated_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })
@@ -1672,7 +1659,6 @@ function openPrintWindow(batch, rows, qrUrls) {
   win.document.close();
 }
 
-// ── Batch status updates ──────────────────────────────
 async function markReceived(batchId) {
   const res = await fetch(`${API}?action=_`, {
     method: 'POST',
@@ -1685,10 +1671,8 @@ async function markReceived(batchId) {
 }
 
 async function markSent(batchId) {
-  // Status update to sent_to_print — no dedicated worker endpoint yet, just refresh
   loadUpcHistory();
 }
-
 
 // ── SCANS TAB ────────────────────────────────────────────────
 let scanActivityFilter = '';
@@ -1697,7 +1681,7 @@ let allScans           = [];
 
 function setScanFilter(activity) {
   scanActivityFilter = activity;
-  document.querySelectorAll('.scan-filter-btn').forEach(b => {
+  document.querySelectorAll('#scanActivityFilters .scan-filter-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.activity === activity);
   });
   renderScans();
@@ -1715,7 +1699,6 @@ async function loadScans() {
   const date       = document.getElementById('dateFrom')?.value || todayISO();
   const showVoided = document.getElementById('scanShowVoided')?.checked;
 
-  // Fetch display rows and accurate aggregate summary in parallel
   const [res, summaryRes] = await Promise.all([
     fetch(API + '?' + new URLSearchParams({ action: 'getAllScans', date }).toString(),
       { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.json()),
@@ -1740,7 +1723,6 @@ function renderScanSummary(summary) {
   };
   const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','RTO_IN'];
 
-  // If RPC summary available use it, else fall back to counting allScans
   let total, voided, counts = {};
   if (summary && typeof summary === 'object' && summary.total !== undefined) {
     total  = summary.total  || 0;
@@ -1776,14 +1758,14 @@ function renderScanSummary(summary) {
 }
 
 function renderScans() {
-  const el        = document.getElementById('scansTable');
+  const el         = document.getElementById('scansTable');
   const showVoided = document.getElementById('scanShowVoided')?.checked;
-  const search    = (document.getElementById('scanUpcSearch')?.value || '').trim().toLowerCase();
+  const search     = (document.getElementById('scanUpcSearch')?.value || '').trim().toLowerCase();
 
   let rows = allScans;
-  if (!showVoided)              rows = rows.filter(s => !s.voided);
-  if (scanActivityFilter)       rows = rows.filter(s => s.activity === scanActivityFilter);
-  if (search)                   rows = rows.filter(s => (s.upc||'').toLowerCase().includes(search));
+  if (!showVoided)        rows = rows.filter(s => !s.voided);
+  if (scanActivityFilter) rows = rows.filter(s => s.activity === scanActivityFilter);
+  if (search)             rows = rows.filter(s => (s.upc||'').toLowerCase().includes(search));
 
   if (!rows.length) {
     el.innerHTML = '<div class="empty"><span class="empty-icon">📡</span>No scans found</div>';
@@ -1794,14 +1776,8 @@ function renderScans() {
     <table>
       <thead>
         <tr>
-          <th>Time</th>
-          <th>UPC</th>
-          <th>Activity</th>
-          <th>Line</th>
-          <th>Product</th>
-          <th>Operator</th>
-          <th>Loop</th>
-          <th>Status</th>
+          <th>Time</th><th>UPC</th><th>Activity</th><th>Line</th>
+          <th>Product</th><th>Operator</th><th>Loop</th><th>Status</th>
         </tr>
       </thead>
       <tbody>
@@ -1890,7 +1866,6 @@ function renderCorrections() {
     return;
   }
 
-  // Store scan data for modal access by index — avoids quoting issues in onclick
   window._corrRows = rows;
 
   el.innerHTML = `
@@ -1984,10 +1959,7 @@ async function submitVoid() {
       body: JSON.stringify({ action: 'voidScan', data: { scan_id: pendingVoidScanId, void_reason: reason } })
     });
     const data = await res.json();
-    if (!data.ok) {
-      errEl.textContent = data.error || 'Void failed';
-      return;
-    }
+    if (!data.ok) { errEl.textContent = data.error || 'Void failed'; return; }
     closeVoidModal();
     await loadCorrections();
   } catch(e) {
@@ -2026,10 +1998,7 @@ async function submitAmend() {
   if (line)  updates.line  = line;
   if (notes) updates.notes = notes;
 
-  if (!Object.keys(updates).length) {
-    errEl.textContent = 'No changes to save';
-    return;
-  }
+  if (!Object.keys(updates).length) { errEl.textContent = 'No changes to save'; return; }
 
   errEl.textContent = '';
   const btn = document.querySelector('#amendModal .modal-confirm');
@@ -2042,10 +2011,7 @@ async function submitAmend() {
       body: JSON.stringify({ action: 'amendScan', data: { scan_id: pendingAmendScanId, reason, updates } })
     });
     const data = await res.json();
-    if (!data.ok) {
-      errEl.textContent = data.error || 'Amendment failed';
-      return;
-    }
+    if (!data.ok) { errEl.textContent = data.error || 'Amendment failed'; return; }
     closeAmendModal();
     await loadCorrections();
   } catch(e) {
@@ -2067,9 +2033,9 @@ document.getElementById('ackModal').addEventListener('click', function(e) {
 });
 
 // ── ALERTS TAB ───────────────────────────────────────────────
-let alertsFilter    = '';
-let pendingAckId    = null;
-window._alertRows   = [];
+let alertsFilter  = '';
+let pendingAckId  = null;
+window._alertRows = [];
 
 function setAlertsFilter(f) {
   alertsFilter = f;
@@ -2091,7 +2057,7 @@ async function loadAlerts(from, to) {
   if (station) params.station = station;
 
   const [vData, sData] = await Promise.all([
-    api('getViolations',      params),
+    api('getViolations',       params),
     api('getViolationSummary', { date: from }),
   ]);
 
@@ -2104,7 +2070,6 @@ async function loadAlerts(from, to) {
   window._alertRows = vData.data || [];
   renderViolationsTable(window._alertRows);
 
-  // Update badge
   const unack = (vData.data || []).filter(v => !v.acknowledged_at).length;
   const badge = document.getElementById('alertsBadge');
   if (unack > 0) {
@@ -2156,25 +2121,19 @@ function renderViolationsTable(rows) {
   const isMahesh = (userRole || '').toLowerCase().includes('mahesh') || (userName || '').toLowerCase().includes('mahesh');
 
   el.innerHTML = `
-    <table class="data-table">
+    <table>
       <thead>
         <tr>
-          <th>Time</th>
-          <th>Line</th>
-          <th>Station</th>
-          <th>Operator</th>
-          <th>UPC</th>
-          <th>Violation</th>
-          <th>Status</th>
-          <th></th>
+          <th>Time</th><th>Line</th><th>Station</th><th>Operator</th>
+          <th>UPC</th><th>Violation</th><th>Status</th><th></th>
         </tr>
       </thead>
       <tbody>
         ${filtered.map((v, i) => {
-          const ts     = v.timestamp ? new Date(v.timestamp).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true }) : '—';
-          const date   = v.timestamp ? new Date(v.timestamp).toLocaleDateString('en-IN', { day:'numeric', month:'short' }) : '';
-          const isAck  = !!v.acknowledged_at;
-          const ackTs  = isAck ? new Date(v.acknowledged_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true }) : '';
+          const ts    = v.timestamp ? new Date(v.timestamp).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true }) : '—';
+          const date  = v.timestamp ? new Date(v.timestamp).toLocaleDateString('en-IN', { day:'numeric', month:'short' }) : '';
+          const isAck = !!v.acknowledged_at;
+          const ackTs = isAck ? new Date(v.acknowledged_at).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true }) : '';
           const stationColor = {INW:'var(--blue)',QC_PASS:'var(--green)',QC_FAIL:'var(--red)',WKS:'var(--orange)',PKG:'#8b5cf6'}[v.station] || 'var(--t3)';
           return `
           <tr style="opacity:${isAck ? '0.45' : '1'}">
@@ -2198,7 +2157,7 @@ function renderViolationsTable(rows) {
             </td>
             <td>
               ${!isAck && !isMahesh
-                ? `<button class="btn-sm" style="background:var(--orange);color:#000;border:none;border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:.06em;cursor:pointer;font-family:var(--mono)" onclick="openAckModal('${v.id}', ${i})">ACK</button>`
+                ? `<button style="background:var(--orange);color:#000;border:none;border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:.06em;cursor:pointer;font-family:var(--mono)" onclick="openAckModal('${v.id}', ${i})">ACK</button>`
                 : ''
               }
             </td>
@@ -2216,7 +2175,7 @@ function openAckModal(violationId, rowIdx) {
   document.getElementById('ackMeta').innerHTML = v
     ? `<strong style="color:var(--orange)">${v.station || '?'}</strong> &nbsp;·&nbsp; ${v.line || '?'} &nbsp;·&nbsp; ${v.upc || '?'}<br><span style="font-size:11px;color:var(--t2)">${v.error_message || ''}</span>`
     : violationId;
-  document.getElementById('ackNote').value    = '';
+  document.getElementById('ackNote').value     = '';
   document.getElementById('ackErr').textContent = '';
   document.getElementById('ackModal').classList.add('show');
 }
@@ -2242,10 +2201,7 @@ async function submitAck() {
       body: JSON.stringify({ action: 'acknowledgeViolation', data: { violation_id: pendingAckId, note } })
     });
     const data = await res.json();
-    if (!data.ok) {
-      errEl.textContent = data.error || 'Failed to acknowledge';
-      return;
-    }
+    if (!data.ok) { errEl.textContent = data.error || 'Failed to acknowledge'; return; }
     closeAckModal();
     await loadAlerts(getDateFrom(), getDateTo());
   } catch(e) {
@@ -2285,7 +2241,6 @@ async function loadReturns() {
   renderReturnsCards(window._returnRows);
   renderReturnsTable(window._returnRows);
 
-  // Update badge — pending count
   const badge = document.getElementById('returnsBadge');
   if (window._returnRows.length > 0) {
     badge.textContent = window._returnRows.length;
@@ -2296,11 +2251,11 @@ async function loadReturns() {
 }
 
 function renderReturnsCards(rows) {
-  const rtd  = rows.filter(r => r.action === 'rtd_direct').length;
-  const wks  = rows.filter(r => r.action === 'wks_repair').length;
-  const udr  = rows.filter(r => r.return_category === 'UDR').length;
-  const cxr  = rows.filter(r => r.return_category === 'CXR').length;
-  const brv  = rows.filter(r => r.return_category === 'BRV').length;
+  const rtd = rows.filter(r => r.action === 'rtd_direct').length;
+  const wks = rows.filter(r => r.action === 'wks_repair').length;
+  const udr = rows.filter(r => r.return_category === 'UDR').length;
+  const cxr = rows.filter(r => r.return_category === 'CXR').length;
+  const brv = rows.filter(r => r.return_category === 'BRV').length;
 
   document.getElementById('returnsCards').innerHTML = `
     <div class="card ${rows.length > 0 ? 'warn' : ''}">
@@ -2341,17 +2296,12 @@ function renderReturnsTable(rows) {
   }
 
   el.innerHTML = `
-    <table class="data-table">
+    <table>
       <thead>
         <tr>
-          <th>Return Unit</th>
-          <th>Category</th>
-          <th>Product</th>
-          <th>Action Required</th>
-          <th>Car UPC</th>
-          <th>Remote UPC</th>
-          <th>Handed Off</th>
-          <th></th>
+          <th>Return Unit</th><th>Category</th><th>Product</th>
+          <th>Action Required</th><th>Car UPC</th><th>Remote UPC</th>
+          <th>Handed Off</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -2364,15 +2314,15 @@ function renderReturnsTable(rows) {
             : '—';
           return `
           <tr>
-            <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--yellow)">${r.return_unit_id || '—'}</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--yellow)">${r.return_unit_id || '—'}</td>
             <td><span class="card ${catBadge}" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;display:inline-block">${r.return_category || '—'}</span></td>
             <td style="font-size:12px">${r.product || '—'}</td>
             <td><span style="font-size:11px;font-weight:700;color:${actionColor};letter-spacing:.06em">${actionLabel}</span></td>
-            <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t2)">${r.car_upc || '—'}</td>
-            <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--t2)">${r.remote_upc || '—'}</td>
+            <td style="font-family:var(--mono);font-size:10px;color:var(--t2)">${r.car_upc || '—'}</td>
+            <td style="font-family:var(--mono);font-size:10px;color:var(--t2)">${r.remote_upc || '—'}</td>
             <td style="font-size:10px;color:var(--t3)">${ts}</td>
             <td>
-              <button style="background:var(--orange);color:#000;border:none;border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:.06em;cursor:pointer;font-family:'JetBrains Mono',monospace"
+              <button style="background:var(--orange);color:#000;border:none;border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:.06em;cursor:pointer;font-family:var(--mono)"
                 onclick="openReturnsActionModal('${r.return_unit_id}','${(r.product||'').replace(/'/g,"\\'")}','${r.action}','${r.return_category||''}')">
                 ACTION
               </button>
