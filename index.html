@@ -1648,7 +1648,8 @@ function renderBatchHistory(batches) {
         ${batches.map(b => {
           const statusCls = 'bs-' + (b.status || '').replace(/ /g,'_');
           const date = b.generated_at ? new Date(b.generated_at).toLocaleDateString('en-IN', {day:'numeric',month:'short'}) : '—';
-          const variant = [b.model, b.color].filter(Boolean).join(' · ') || '—';
+          const isRemote = (b.product_code || '').length === 5;
+          const variant = isRemote ? '—' : ([b.model, b.color].filter(Boolean).join(' · ') || '—');
           return `
             <tr>
               <td class="td-mono" style="color:var(--yellow)">${b.batch_id}</td>
@@ -1816,7 +1817,7 @@ function openPrintWindow(batch, rows, qrUrls) {
 </head><body>
 <div class="hdr">
   <span>LOT — Batch ${batch.batch_id}</span>
-  <span>${batch.product}${batch.model ? ' · ' + batch.model : ''}${batch.color ? ' · ' + batch.color : ''} · ${rows.length} stickers</span>
+  <span>${batch.product}${(batch.product_code||'').length !== 5 && batch.model ? ' · ' + batch.model : ''}${(batch.product_code||'').length !== 5 && batch.color ? ' · ' + batch.color : ''} · ${rows.length} stickers</span>
   <span>${date}</span>
 </div>
 <div class="grid">${stickers}</div>
