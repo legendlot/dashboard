@@ -395,6 +395,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 .scan-act-RTE{color:#0ea5e9}
 .scan-act-RTR{color:var(--yellow)}
 .scan-act-RTO_IN{color:var(--orange)}
+.scan-act-RTD_RETURN{color:#14b8a6}
 .scan-voided{opacity:.4;text-decoration:line-through}
 
 /* ── CORRECTIONS TAB ── */
@@ -716,6 +717,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         <button class="scan-filter-btn" data-activity="RTE" onclick="setScanFilter('RTE')">RTE</button>
         <button class="scan-filter-btn" data-activity="RTR" onclick="setScanFilter('RTR')">RTR</button>
         <button class="scan-filter-btn" data-activity="RTO_IN" onclick="setScanFilter('RTO_IN')">RTO In</button>
+        <button class="scan-filter-btn" data-activity="RTD_RETURN" onclick="setScanFilter('RTD_RETURN')">RTD Return</button>
       </div>
       <div style="display:flex;gap:6px;align-items:center;margin-left:auto">
         <input type="text" id="scanUpcSearch" class="upc-input" placeholder="Search UPC…" style="width:180px" oninput="onScanSearch()">
@@ -744,6 +746,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         <button class="scan-filter-btn" data-activity="RTE" onclick="setCorrFilter('RTE')">RTE</button>
         <button class="scan-filter-btn" data-activity="RTR" onclick="setCorrFilter('RTR')">RTR</button>
         <button class="scan-filter-btn" data-activity="RTO_IN" onclick="setCorrFilter('RTO_IN')">RTO In</button>
+        <button class="scan-filter-btn" data-activity="RTD_RETURN" onclick="setCorrFilter('RTD_RETURN')">RTD Return</button>
       </div>
       <div style="display:flex;gap:6px;align-items:center;margin-left:auto">
         <input type="text" id="corrUpcSearch" class="upc-input" placeholder="Search UPC…" style="width:180px" oninput="onCorrSearch()">
