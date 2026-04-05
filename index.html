@@ -453,6 +453,31 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 #tab-alerts .table-wrap{flex:1;min-height:0;overflow-y:auto}
 #tab-returns .table-wrap{flex:1;min-height:0;overflow-y:auto}
 
+/* ── UPC PRODUCT SEARCH DROPDOWN ── */
+.upc-search-wrap{position:relative}
+.upc-dropdown{
+  position:absolute;top:100%;left:0;right:0;z-index:300;
+  background:var(--s3);border:1px solid var(--yellow);
+  border-top:none;border-radius:0 0 6px 6px;
+  max-height:260px;overflow-y:auto;
+}
+.upc-dropdown::-webkit-scrollbar{width:4px}
+.upc-dropdown::-webkit-scrollbar-thumb{background:var(--b3);border-radius:2px}
+.upc-dd-item{
+  padding:9px 12px;cursor:pointer;
+  border-bottom:1px solid var(--b1);
+  transition:background .08s;display:flex;align-items:baseline;gap:10px;
+}
+.upc-dd-item:last-child{border-bottom:none}
+.upc-dd-item:hover,.upc-dd-item.hi{background:var(--s4)}
+.upc-dd-code{
+  font-family:var(--mono);font-size:10px;color:var(--yellow);
+  flex-shrink:0;letter-spacing:.04em;
+}
+.upc-dd-name{font-size:12px;color:var(--text);flex:1}
+.upc-dd-remote{font-size:10px;color:var(--t3);flex-shrink:0}
+.upc-dd-empty{padding:14px 12px;font-size:11px;color:var(--t3);text-align:center}
+
 /* ── CYCLE TIME PANELS (Reporting tab) ── */
 .ct-panels{display:flex;gap:12px;flex-wrap:wrap}
 .ct-panel{
@@ -638,9 +663,14 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
       <div class="upc-form">
         <div class="upc-field">
           <div class="upc-field-label">Product</div>
-          <select id="upcProductSelect" class="upc-select" onchange="onUpcProductChange()">
-            <option value="">— Loading products... —</option>
-          </select>
+          <div class="upc-search-wrap" id="upcSearchWrap">
+            <input type="text" id="upcProductSearch" class="upc-input"
+              placeholder="Type product or variant…"
+              oninput="onUpcSearch()"
+              onfocus="openUpcDropdown()"
+              autocomplete="off">
+            <div class="upc-dropdown" id="upcDropdown" style="display:none"></div>
+          </div>
         </div>
         <div class="upc-field" id="upcComponentField" style="display:none">
           <div class="upc-field-label">Component</div>
@@ -1611,16 +1641,95 @@ async function loadUpcProducts() {
   const data = await api('getProductCodes');
   if (!data.ok) return;
   upcProducts = data.data || [];
-
-  const sel = document.getElementById('upcProductSelect');
-  sel.innerHTML = '<option value="">— Select a product —</option>' +
-    upcProducts.map(p =>
-      `<option value="${p.product_code}" data-has-remote="${p.has_remote}">` +
-      `${p.product_code} — ${p.product} ${p.model} ${p.color}` +
-      `${p.has_remote ? ' (+ remote)' : ''}` +
-      `</option>`
-    ).join('');
+  document.getElementById('upcProductSearch').placeholder = 'Type product or variant…';
 }
+
+// ── UPC PRODUCT SEARCHABLE DROPDOWN ─────────────────────────
+
+let selectedProductCode = '';
+let selectedHasRemote   = false;
+let upcDropdownOpen     = false;
+
+function upcSearchLabel(p) {
+  const parts = [p.product, p.model, p.color].filter(Boolean);
+  return parts.join(' · ');
+}
+
+function renderUpcDropdown(query) {
+  const el = document.getElementById('upcDropdown');
+  const q  = (query || '').toLowerCase().trim();
+
+  const filtered = q
+    ? upcProducts.filter(p => {
+        const hay = [p.product_code, p.product, p.model, p.color].join(' ').toLowerCase();
+        return q.split(/\s+/).every(word => hay.includes(word));
+      })
+    : upcProducts;
+
+  if (!filtered.length) {
+    el.innerHTML = '<div class="upc-dd-empty">No products match</div>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(p => {
+    const label = upcSearchLabel(p);
+    const remote = p.has_remote ? '<span class="upc-dd-remote">+ remote</span>' : '';
+    return '<div class="upc-dd-item" data-code="' + p.product_code + '" data-has-remote="' + p.has_remote + '" data-label="' + label + '" onclick="selectUpcProduct(this)">' +
+      '<span class="upc-dd-code">' + p.product_code + '</span>' +
+      '<span class="upc-dd-name">' + label + '</span>' +
+      remote +
+      '</div>';
+  }).join('');
+}
+
+function openUpcDropdown() {
+  const el = document.getElementById('upcDropdown');
+  renderUpcDropdown(document.getElementById('upcProductSearch').value);
+  el.style.display = '';
+  upcDropdownOpen = true;
+}
+
+function closeUpcDropdown() {
+  document.getElementById('upcDropdown').style.display = 'none';
+  upcDropdownOpen = false;
+  // If input doesn't match selected, restore selected label or clear
+  const inp = document.getElementById('upcProductSearch');
+  if (selectedProductCode) {
+    const p = upcProducts.find(x => x.product_code === selectedProductCode);
+    if (p) inp.value = upcSearchLabel(p);
+  } else {
+    inp.value = '';
+  }
+}
+
+function onUpcSearch() {
+  if (!upcDropdownOpen) openUpcDropdown();
+  renderUpcDropdown(document.getElementById('upcProductSearch').value);
+  // Clear selection while typing
+  selectedProductCode = '';
+  selectedHasRemote   = false;
+  document.getElementById('upcComponentField').style.display = 'none';
+  selectComponent('car');
+}
+
+function selectUpcProduct(el) {
+  selectedProductCode = el.dataset.code;
+  selectedHasRemote   = el.dataset.hasRemote === 'true';
+  document.getElementById('upcProductSearch').value = el.dataset.label;
+  document.getElementById('upcDropdown').style.display = 'none';
+  upcDropdownOpen = false;
+  document.getElementById('upcComponentField').style.display = selectedHasRemote ? '' : 'none';
+  if (!selectedHasRemote) upcComponent = 'car';
+  selectComponent('car');
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('upcSearchWrap');
+  if (wrap && !wrap.contains(e.target)) closeUpcDropdown();
+});
+
+function onUpcProductChange() {} // kept for compatibility — no longer used
 
 async function loadUpcHistory() {
   const el = document.getElementById('upcBatchTable');
@@ -1675,15 +1784,6 @@ function renderBatchHistory(batches) {
   `;
 }
 
-function onUpcProductChange() {
-  const sel = document.getElementById('upcProductSelect');
-  const opt = sel.options[sel.selectedIndex];
-  const hasRemote = opt?.dataset?.hasRemote === 'true';
-  document.getElementById('upcComponentField').style.display = hasRemote ? '' : 'none';
-  if (!hasRemote) upcComponent = 'car';
-  selectComponent('car');
-}
-
 function selectComponent(comp) {
   upcComponent = comp;
   document.getElementById('upcCompCar').classList.toggle('active', comp === 'car');
@@ -1691,8 +1791,7 @@ function selectComponent(comp) {
 }
 
 async function generateBatch() {
-  const sel      = document.getElementById('upcProductSelect');
-  const baseCode = sel.value;
+  const baseCode = selectedProductCode;
   const qty      = parseInt(document.getElementById('upcQty').value);
   const notes    = document.getElementById('upcNotes').value.trim();
   const statusEl = document.getElementById('upcGenStatus');
