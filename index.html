@@ -452,6 +452,46 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 #tab-scans .table-wrap{flex:1;min-height:0;overflow-y:auto}
 #tab-alerts .table-wrap{flex:1;min-height:0;overflow-y:auto}
 #tab-returns .table-wrap{flex:1;min-height:0;overflow-y:auto}
+
+/* ── CYCLE TIME PANELS (Reporting tab) ── */
+.ct-panels{display:flex;gap:12px;flex-wrap:wrap}
+.ct-panel{
+  background:var(--s2);border:1px solid var(--b1);border-radius:8px;
+  padding:16px;flex:1;min-width:180px;
+}
+.ct-panel.active::before{
+  content:'';display:block;height:2px;border-radius:2px 2px 0 0;
+  background:var(--yellow);margin:-16px -16px 14px;border-radius:8px 8px 0 0;
+}
+.ct-panel-label{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--t3);margin-bottom:2px}
+.ct-panel-segment{font-size:9px;color:var(--t3);margin-bottom:12px;letter-spacing:.04em}
+.ct-panel-avg{font-family:var(--head);font-weight:900;font-size:26px;line-height:1;color:var(--text)}
+.ct-panel-sub{font-size:10px;color:var(--t2);margin-top:4px}
+.ct-panel-divider{height:1px;background:var(--b1);margin:10px 0}
+.ct-panel-row{display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-top:5px}
+.ct-panel-row span:last-child{color:var(--t2)}
+.ct-panel-outlier{
+  font-size:9px;color:var(--orange);margin-top:8px;padding-top:8px;
+  border-top:1px solid rgba(245,158,11,.2);letter-spacing:.04em;
+}
+
+/* ── OUTLIER STRIP (QC tab) ── */
+.ct-outlier-strip{
+  background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.18);
+  border-radius:6px;padding:8px 14px;font-size:10px;color:var(--orange);
+  display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;
+}
+.ct-outlier-strip .ct-detail{color:var(--t3)}
+
+/* ── REPORTING QC SUMMARY ── */
+.rqc-wrap{display:grid;grid-template-columns:1fr 2fr;gap:12px}
+.rqc-defects table{width:100%;border-collapse:collapse}
+.rqc-defects thead th{
+  padding:8px 12px;font-size:9px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--t3);font-weight:600;border-bottom:1px solid var(--b1);background:var(--s3);text-align:left;
+}
+.rqc-defects tbody td{padding:8px 12px;border-bottom:1px solid var(--b1);font-size:11px;color:var(--t2)}
+.rqc-defects tbody tr:last-child td{border-bottom:none}
 </style>
 </head>
 <body>
@@ -557,7 +597,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
   <div id="tab-qc" class="content" style="display:none">
     <div>
       <div class="sec-label">QC Cycle Time — INW to Outcome</div>
-      <div class="cards" id="qcCycleCards">
+      <div id="qcCycleSection">
         <div class="loading"><div class="spinner"></div></div>
       </div>
     </div>
@@ -747,6 +787,27 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div>
       <div class="sec-label">Production Summary</div>
       <div class="cards" id="reportingCards">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">Cycle Time Summary</div>
+      <div id="reportingCycleTimes">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">QC Summary</div>
+      <div id="reportingQCSummary">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">Product Breakdown</div>
+      <div class="table-wrap" id="reportingProductTable">
         <div class="loading"><div class="spinner"></div></div>
       </div>
     </div>
@@ -1328,44 +1389,60 @@ function fmtMins(mins) {
 }
 
 function renderCycleTime(ct) {
-  const el = document.getElementById('qcCycleCards');
+  const el = document.getElementById('qcCycleSection');
   if (!el) return;
   if (!ct || !ct.units_measured) {
     el.innerHTML = `
-      <div class="card">
-        <div class="card-label">Avg QC Cycle Time</div>
-        <div class="card-val" style="font-size:20px">—</div>
-        <div class="card-sub">No data for period</div>
+      <div class="cards">
+        <div class="card">
+          <div class="card-label">Avg QC Cycle Time</div>
+          <div class="card-val" style="font-size:20px">—</div>
+          <div class="card-sub">No data for period</div>
+        </div>
       </div>`;
     return;
   }
   const avgColor = ct.avg_mins_all <= 30 ? 'var(--green)' : ct.avg_mins_all <= 60 ? 'var(--yellow)' : 'var(--red)';
+  const outlierHtml = Number(ct.outlier_count) > 0
+    ? '<div class="ct-outlier-strip"><span>⚠</span>' +
+      '<span><strong>' + ct.outlier_count + '</strong> outlier unit' + (Number(ct.outlier_count) > 1 ? 's' : '') + ' excluded from all averages above</span>' +
+      '<span class="ct-detail">— longest was <strong>' + fmtMins(ct.outlier_max_mins) + '</strong> &nbsp;·&nbsp; IQR fence at ' + fmtMins(ct.outlier_threshold_mins) + '</span></div>'
+    : '';
+
   el.innerHTML = `
-    <div class="card hi">
-      <div class="card-label">Avg Cycle Time</div>
-      <div class="card-val" style="font-size:22px;color:${avgColor}">${fmtMins(ct.avg_mins_all)}</div>
-      <div class="card-sub">INW → QC outcome · ${fmt(ct.units_measured)} units</div>
+    <div class="cards">
+      <div class="card hi">
+        <div class="card-label">Avg Cycle Time</div>
+        <div class="card-val" style="font-size:22px;color:${avgColor}">${fmtMins(ct.avg_mins_all)}</div>
+        <div class="card-sub">Core · ${fmt(ct.units_measured)} units</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Median</div>
+        <div class="card-val" style="font-size:22px">${fmtMins(ct.median_mins)}</div>
+        <div class="card-sub">50th percentile</div>
+      </div>
+      <div class="card ok">
+        <div class="card-label">Avg — QC Pass</div>
+        <div class="card-val" style="font-size:22px;color:var(--green)">${fmtMins(ct.avg_mins_pass)}</div>
+        <div class="card-sub">Units that passed</div>
+      </div>
+      <div class="card bad">
+        <div class="card-label">Avg — QC Fail</div>
+        <div class="card-val" style="font-size:22px;color:var(--red)">${fmtMins(ct.avg_mins_fail)}</div>
+        <div class="card-sub">Units that failed</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Fastest</div>
+        <div class="card-val" style="font-size:22px">${fmtMins(ct.fastest_mins)}</div>
+        <div class="card-sub">Quickest through QC</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Slowest (Normal)</div>
+        <div class="card-val" style="font-size:22px">${fmtMins(ct.slowest_normal_mins)}</div>
+        <div class="card-sub">Max within fence</div>
+      </div>
     </div>
-    <div class="card ok">
-      <div class="card-label">Avg — QC Pass</div>
-      <div class="card-val" style="font-size:22px;color:var(--green)">${fmtMins(ct.avg_mins_pass)}</div>
-      <div class="card-sub">Units that passed</div>
-    </div>
-    <div class="card bad">
-      <div class="card-label">Avg — QC Fail</div>
-      <div class="card-val" style="font-size:22px;color:var(--red)">${fmtMins(ct.avg_mins_fail)}</div>
-      <div class="card-sub">Units that failed</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Fastest</div>
-      <div class="card-val" style="font-size:22px">${fmtMins(ct.fastest_mins)}</div>
-      <div class="card-sub">Quickest unit through QC</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Slowest</div>
-      <div class="card-val" style="font-size:22px">${fmtMins(ct.slowest_mins)}</div>
-      <div class="card-sub">Longest unit through QC</div>
-    </div>
+    ${outlierHtml}
   `;
 }
 
@@ -2474,21 +2551,179 @@ async function submitReturnsAction(outcome) {
 
 // ── REPORTING TAB ────────────────────────────────────────────
 async function loadReporting(from, to) {
-  document.getElementById('reportingCards').innerHTML       = '<div class="loading"><div class="spinner"></div></div>';
-  document.getElementById('reportingDailyTable').innerHTML  = '<div class="loading"><div class="spinner"></div></div>';
-  document.getElementById('reportingLineTable').innerHTML   = '<div class="loading"><div class="spinner"></div></div>';
+  ['reportingCards','reportingCycleTimes','reportingQCSummary',
+   'reportingProductTable','reportingDailyTable','reportingLineTable'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  });
 
-  const [pvaRes, summaryRes] = await Promise.all([
-    api('getPlanVsActual', { from, to }),
-    api('getScanSummary',  { date: from, date_to: to }),
+  const [pvaRes, ctRes, qcRes] = await Promise.all([
+    api('getPlanVsActual',     { from, to }),
+    api('getCycleTimeSummary', { from, to }),
+    api('getQCView',           { from, to }),
   ]);
 
   const rows = pvaRes.ok ? (pvaRes.data || []) : [];
+  const ct   = ctRes.ok  ? ctRes.data  : null;
+  const qc   = qcRes.ok  ? qcRes.data  : null;
 
   renderReportingCards(rows, from, to);
+  renderReportingCycleTimes(ct);
+  renderReportingQCSummary(qc);
+  renderProductBreakdown(rows);
   renderReportingDaily(rows);
   renderReportingLines(rows);
 }
+
+function renderReportingCycleTimes(data) {
+  const el = document.getElementById('reportingCycleTimes');
+  if (!el) return;
+  if (!data) {
+    el.innerHTML = '<div class="empty">No cycle time data for period</div>';
+    return;
+  }
+
+  function ctPanel(ct, label, segment, splitA, labelA, splitB, labelB) {
+    if (!ct || !ct.units_measured) {
+      return '<div class="ct-panel"><div class="ct-panel-label">' + label + '</div>' +
+        '<div class="ct-panel-segment">' + segment + '</div>' +
+        '<div class="ct-panel-avg" style="color:var(--t3)">—</div>' +
+        '<div class="ct-panel-sub">No data for period</div></div>';
+    }
+    const avgColor = ct.avg_mins_all <= 30 ? 'var(--green)' : ct.avg_mins_all <= 60 ? 'var(--yellow)' : 'var(--red)';
+    const outlierHtml = Number(ct.outlier_count) > 0
+      ? '<div class="ct-panel-outlier">⚠ ' + ct.outlier_count + ' outlier' + (Number(ct.outlier_count) > 1 ? 's' : '') + ' excluded — max ' + fmtMins(ct.outlier_max_mins) + '</div>'
+      : '';
+    return `
+      <div class="ct-panel active">
+        <div class="ct-panel-label">${label}</div>
+        <div class="ct-panel-segment">${segment}</div>
+        <div class="ct-panel-avg" style="color:${avgColor}">${fmtMins(ct.avg_mins_all)}</div>
+        <div class="ct-panel-sub">${fmt(ct.units_measured)} units · median ${fmtMins(ct.median_mins)}</div>
+        <div class="ct-panel-divider"></div>
+        <div class="ct-panel-row"><span>${labelA}</span><span>${fmtMins(ct[splitA])}</span></div>
+        <div class="ct-panel-row"><span>${labelB}</span><span>${fmtMins(ct[splitB])}</span></div>
+        <div class="ct-panel-row"><span>Fastest</span><span>${fmtMins(ct.fastest_mins)}</span></div>
+        <div class="ct-panel-row"><span>Slowest</span><span>${fmtMins(ct.slowest_normal_mins)}</span></div>
+        ${outlierHtml}
+      </div>`;
+  }
+
+  el.innerHTML = `<div class="ct-panels">
+    ${ctPanel(data.qc,  'QC Cycle Time',  'INW → QC outcome',     'avg_mins_pass', 'QC Pass', 'avg_mins_fail', 'QC Fail')}
+    ${ctPanel(data.pkg, 'PKG Cycle Time', 'QC Pass → Packaging',  'avg_mins_ecom', 'Ecom',    'avg_mins_retail','Retail')}
+    ${ctPanel(data.rtd, 'RTD Cycle Time', 'Packaging → Dispatch', 'avg_mins_ecom', 'RTE',     'avg_mins_retail','RTR')}
+  </div>`;
+}
+
+function renderReportingQCSummary(qc) {
+  const el = document.getElementById('reportingQCSummary');
+  if (!el) return;
+  if (!qc) { el.innerHTML = '<div class="empty">No QC data for period</div>'; return; }
+
+  const fpy = qc.fpy || [];
+  const heatmap = qc.heatmap || [];
+
+  // Aggregate FPY
+  let totalPass = 0, totalFail = 0;
+  fpy.forEach(r => {
+    const inspected = Number(r.total_inspected) || 0;
+    const passed    = Number(r.first_pass)       || 0;
+    totalPass += passed;
+    totalFail += (inspected - passed);
+  });
+  const totalInspected = totalPass + totalFail;
+  const overallFpy = totalInspected > 0 ? ((totalPass / totalInspected) * 100).toFixed(1) : null;
+  const fpyColor = overallFpy >= 95 ? 'var(--green)' : overallFpy >= 85 ? 'var(--yellow)' : 'var(--red)';
+
+  // Aggregate defects
+  const defAgg = {};
+  heatmap.forEach(r => {
+    if (!defAgg[r.defect_code]) defAgg[r.defect_code] = { code: r.defect_code, issue: r.issue, count: 0 };
+    defAgg[r.defect_code].count += (Number(r.defect_count) || 0);
+  });
+  const topDefects = Object.values(defAgg).sort((a,b) => b.count - a.count).slice(0, 6);
+
+  el.innerHTML = `
+    <div class="rqc-wrap">
+      <div>
+        <div class="cards" style="grid-template-columns:1fr 1fr">
+          <div class="card ${overallFpy >= 95 ? 'ok' : overallFpy >= 85 ? 'warn' : overallFpy != null ? 'bad' : ''}">
+            <div class="card-label">First Pass Yield</div>
+            <div class="card-val" style="font-size:28px;color:${fpyColor}">${overallFpy != null ? overallFpy + '%' : '—'}</div>
+            <div class="card-sub">${fmt(totalInspected)} inspected</div>
+          </div>
+          <div class="card ${totalFail > 0 ? 'bad' : ''}">
+            <div class="card-label">Total Failures</div>
+            <div class="card-val" style="font-size:28px;color:${totalFail > 0 ? 'var(--red)' : ''}">${fmt(totalFail)}</div>
+            <div class="card-sub">${fmt(totalPass)} passed</div>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap rqc-defects">
+        ${topDefects.length ? `
+        <table>
+          <thead><tr><th>Code</th><th>Issue</th><th style="text-align:right">Count</th></tr></thead>
+          <tbody>
+            ${topDefects.map(d => `
+              <tr>
+                <td style="font-family:var(--mono);color:var(--yellow);font-size:10px">${d.code}</td>
+                <td>${d.issue || '—'}</td>
+                <td style="font-family:var(--mono);color:var(--red);text-align:right;font-weight:700">${d.count}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>` : '<div class="empty">No defects logged</div>'}
+      </div>
+    </div>`;
+}
+
+function renderProductBreakdown(rows) {
+  const el = document.getElementById('reportingProductTable');
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = '<div class="empty">No data</div>'; return; }
+
+  const byProduct = {};
+  rows.forEach(r => {
+    const key = r.product || '—';
+    if (!byProduct[key]) byProduct[key] = { target:0, pass:0, dispatched:0, rtr:0, rte:0, runs:0 };
+    const d = byProduct[key];
+    d.target     += Number(r.target_qty)       || 0;
+    d.pass       += Number(r.actual_qc_pass)   || 0;
+    d.dispatched += Number(r.total_dispatched) || 0;
+    d.rtr        += Number(r.actual_rtr)       || 0;
+    d.rte        += Number(r.actual_rte)       || 0;
+    d.runs++;
+  });
+
+  const products = Object.keys(byProduct).sort();
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th><th>Runs</th><th>Target</th>
+          <th>QC Pass</th><th>Dispatched</th><th>Retail</th><th>Ecom</th><th>Done %</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${products.map(p => {
+          const d = byProduct[p];
+          const pct = d.target > 0 ? Math.round((d.dispatched / d.target) * 100) : 0;
+          const pctColor = pct >= 90 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : pct > 0 ? 'var(--orange)' : 'var(--t3)';
+          return `<tr>
+            <td style="color:var(--text)">${p}</td>
+            <td class="td-mono">${d.runs}</td>
+            <td class="td-mono">${fmt(d.target)}</td>
+            <td class="td-mono" style="color:var(--green)">${fmt(d.pass)}</td>
+            <td class="td-mono" style="color:var(--text)">${fmt(d.dispatched)}</td>
+            <td class="td-mono" style="color:#a78bfa">${fmt(d.rtr)}</td>
+            <td class="td-mono" style="color:#38bdf8">${fmt(d.rte)}</td>
+            <td class="td-mono" style="color:${pctColor};font-weight:700">${pct}%</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
 
 function renderReportingCards(rows, from, to) {
   const el = document.getElementById('reportingCards');
