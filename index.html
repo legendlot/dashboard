@@ -2002,9 +2002,9 @@ async function loadScans() {
 function renderScanSummary(summary) {
   const colorMap = {
     INW:'#60a5fa', QC_PASS:'var(--green)', QC_FAIL:'var(--red)',
-    WKS_IN:'#a78bfa', WKS_OUT:'#a78bfa', RTO_IN:'var(--orange)',
+    WKS_IN:'#a78bfa', WKS_OUT:'#a78bfa', PKG:'#8b5cf6', RTO_IN:'var(--orange)',
   };
-  const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','RTO_IN'];
+  const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','PKG','RTO_IN'];
 
   let total, voided, counts = {};
   if (summary && typeof summary === 'object' && summary.total !== undefined) {
@@ -2012,13 +2012,10 @@ function renderScanSummary(summary) {
     voided = summary.voided || 0;
     activities.forEach(a => { counts[a] = summary[a] || 0; });
   } else {
-    activities.forEach(a => { counts[a] = 0; });
-    allScans.filter(s => !s.voided).forEach(s => {
-      if (counts[s.activity] !== undefined) counts[s.activity]++;
-      else counts[s.activity] = (counts[s.activity] || 0) + 1;
-    });
-    total  = allScans.filter(s => !s.voided).length;
-    voided = allScans.filter(s =>  s.voided).length;
+    // RPC failed — show dashes, do not count from limited display rows
+    activities.forEach(a => { counts[a] = '—'; });
+    total  = '—';
+    voided = '—';
   }
 
   const el = document.getElementById('scanSummaryCards');
