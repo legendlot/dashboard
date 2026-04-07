@@ -1323,8 +1323,9 @@ async function submitOpModal() {
 
   if (!name) { errEl.textContent = 'Name is required'; return; }
 
-  const payload = { name, role, line };
-  if (id) payload.id = id;
+  const payload = { name, role };
+  if (id)   payload.id   = id;
+  if (line) payload.line = line;
 
   const r = await api('saveOperator', payload);
   if (!r.ok) { errEl.textContent = r.error || 'Save failed'; return; }
@@ -1336,7 +1337,7 @@ async function submitOpModal() {
 async function toggleOperatorActive(id, currentlyActive) {
   const label = currentlyActive ? 'deactivate' : 'reactivate';
   if (!confirm(`Are you sure you want to ${label} this operator?`)) return;
-  const r = await api('saveOperator', { id, is_active: !currentlyActive });
+  const r = await api('saveOperator', { id, is_active: String(!currentlyActive) });
   if (!r.ok) { alert('Failed: ' + (r.error || 'unknown error')); return; }
   await loadOperators();
 }
