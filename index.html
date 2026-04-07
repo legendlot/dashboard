@@ -1289,8 +1289,13 @@ function setPrintMode(mode) {
 }
 
 async function searchPrintSingle() {
-  const val = document.getElementById('printSingleVal').value.trim();
+  let val = document.getElementById('printSingleVal').value.trim();
   if (!val) return;
+  // Auto-prefix LOT- if missing
+  if (!val.startsWith('LOT-') && !val.startsWith('lot-')) {
+    val = 'LOT-' + val.padStart(8, '0');
+  }
+  val = val.toUpperCase();
   const el = document.getElementById('printResults');
   el.innerHTML = '<div style="color:var(--t2);font-size:11px;padding:20px 0">Searching...</div>';
 
@@ -1315,7 +1320,12 @@ async function searchPrintBulk() {
   el.innerHTML = '<div style="color:var(--t2);font-size:11px;padding:20px 0">Searching ' + vals.length + ' items...</div>';
 
   // Fetch all in parallel
-  const results = await Promise.all(vals.map(async val => {
+  const results = await Promise.all(vals.map(async rawVal => {
+    let val = rawVal;
+    if (!val.startsWith('LOT-') && !val.startsWith('lot-')) {
+      val = 'LOT-' + val.padStart(8, '0');
+    }
+    val = val.toUpperCase();
     const isCarUpc = !val.endsWith('-E') && !val.endsWith('-R');
     const params   = isCarUpc ? { car_upc: val } : { batch_label: val };
     const r        = await api('getPkgScanLookup', params);
