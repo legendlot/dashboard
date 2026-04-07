@@ -1196,20 +1196,35 @@ function updateClock() {
 }
 
 // ── TABS ─────────────────────────────────────────────────────
+// Per-tab independent date state
+const TAB_DATE_TABS = ['exec', 'qc', 'runs', 'alerts'];
+let tabDates = {};
+
 function switchTab(tab) {
+  // Save the current tab's date state before leaving
+  if (TAB_DATE_TABS.includes(activeTab)) {
+    tabDates[activeTab] = { from: getDateFrom(), to: getDateTo() };
+  }
+
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   ['exec','lines','qc','runs','upc','scans','corrections','alerts','returns','reporting','operators','print'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
-  const showDateBar = tab !== 'upc' && tab !== 'scans' && tab !== 'corrections' && tab !== 'returns' && tab !== 'lines' && tab !== 'reporting' && tab !== 'operators' && tab !== 'print';
+
+  const showDateBar = TAB_DATE_TABS.includes(tab);
   document.querySelector('.datebar').style.display = showDateBar ? '' : 'none';
+
   if (showDateBar) {
-    const from = getDateFrom(), to = getDateTo();
-    const isRange = from !== to;
-    document.getElementById('dateToLabel').style.display = isRange || tab === 'qc' || tab === 'runs' || tab === 'alerts' ? '' : 'none';
-    document.getElementById('dateTo').style.display      = isRange || tab === 'qc' || tab === 'runs' || tab === 'alerts' ? '' : 'none';
+    // Restore this tab's own dates — default to today on first visit
+    const saved = tabDates[tab] || { from: todayStr(), to: todayStr() };
+    document.getElementById('dateFrom').value = saved.from;
+    document.getElementById('dateTo').value   = saved.to;
+    const isRange = saved.from !== saved.to;
+    document.getElementById('dateToLabel').style.display = isRange ? '' : 'none';
+    document.getElementById('dateTo').style.display      = isRange ? '' : 'none';
   }
+
   loadTab(tab);
   setTimeout(setContentHeight, 0);
 }
@@ -2427,6 +2442,7 @@ async function markSent(batchId) {
 let scanActivityFilter = '';
 let scanSearchTimer    = null;
 let allScans           = [];
+let scanUpcMode        = false;
 
 function setScanFilter(activity) {
   scanActivityFilter = activity;
@@ -2438,7 +2454,40 @@ function setScanFilter(activity) {
 
 function onScanSearch() {
   clearTimeout(scanSearchTimer);
-  scanSearchTimer = setTimeout(renderScans, 300);
+  const search = (document.getElementById('scanUpcSearch')?.value || '').trim();
+  if (search.length === 0) {
+    if (scanUpcMode) {
+      scanUpcMode = false;
+      document.getElementById('scanSummaryCards').style.display = '';
+      loadScans();
+    }
+    return;
+  }
+  if (search.length >= 4) {
+    scanSearchTimer = setTimeout(() => searchScansByUpc(search), 500);
+  } else {
+    scanSearchTimer = setTimeout(renderScans, 200);
+  }
+}
+
+async function searchScansByUpc(upc) {
+  scanUpcMode = true;
+  const el = document.getElementById('scansTable');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div> Searching all history...</div>';
+  document.getElementById('scanSummaryCards').style.display = 'none';
+
+  const res = await fetch(API + '?' + new URLSearchParams({ action: 'getScansByUpc', upc }).toString(),
+    { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(r => r.json())
+    .catch(() => ({ ok: false, error: 'Network error' }));
+
+  if (!res.ok) {
+    el.innerHTML = `<div class="empty">Search failed: ${res.error || 'Unknown error'}</div>`;
+    return;
+  }
+
+  allScans = res.data || [];
+  renderScans();
 }
 
 async function loadScans() {
@@ -2530,7 +2579,10 @@ function renderScans() {
       <tbody>
         ${rows.map(s => {
           const time = s.timestamp
-            ? new Date(s.timestamp).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})
+            ? (scanUpcMode
+                ? new Date(s.timestamp).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'2-digit'}) + ' ' +
+                  new Date(s.timestamp).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',hour12:false})
+                : new Date(s.timestamp).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}))
             : '—';
           const actCls = 'scan-act-' + (s.activity||'');
           const rowCls = s.voided ? 'scan-voided' : '';
