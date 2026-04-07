@@ -561,6 +561,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div class="tab" data-tab="returns" onclick="switchTab('returns')">Returns <span id="returnsBadge" style="display:none;background:var(--orange);color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle"></span></div>
     <div class="tab" data-tab="reporting" onclick="switchTab('reporting')">Reporting</div>
     <div class="tab" data-tab="operators" onclick="switchTab('operators')">Operators</div>
+    <div class="tab" data-tab="print" onclick="switchTab('print')">Print</div>
   </div>
 
   <div class="datebar">
@@ -901,6 +902,55 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     </div>
   </div>
 
+  <!-- PRINT TAB -->
+  <div id="tab-print" class="content" style="display:none;flex-direction:column;padding:0;overflow-y:auto">
+    <div style="padding:20px 24px;border-bottom:1px solid var(--b2);flex-shrink:0">
+      <div style="font-size:11px;color:var(--t3);letter-spacing:.15em;text-transform:uppercase;margin-bottom:16px">Reprint Batch Labels</div>
+
+      <!-- Mode toggle -->
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button id="printModeSingle" onclick="setPrintMode('single')"
+          style="padding:7px 16px;background:var(--yellow);color:#000;border:none;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;font-family:inherit">
+          Single
+        </button>
+        <button id="printModeBulk" onclick="setPrintMode('bulk')"
+          style="padding:7px 16px;background:var(--surface2);color:var(--t2);border:1px solid var(--b2);border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;font-family:inherit">
+          Bulk
+        </button>
+      </div>
+
+      <!-- Single input -->
+      <div id="printSingleInput">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="printSingleVal" type="text" placeholder="Batch label (LOT-00003151-E) or car UPC (LOT-00003151)"
+            style="flex:1;background:var(--surface2);color:var(--text);border:1px solid var(--b2);border-radius:6px;padding:9px 12px;font-size:12px;font-family:inherit"
+            onkeydown="if(event.key==='Enter')searchPrintSingle()">
+          <button onclick="searchPrintSingle()"
+            style="padding:9px 20px;background:var(--yellow);color:#000;border:none;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;font-family:inherit">
+            SEARCH
+          </button>
+        </div>
+      </div>
+
+      <!-- Bulk input -->
+      <div id="printBulkInput" style="display:none">
+        <textarea id="printBulkVal" rows="6" placeholder="Paste batch labels or car UPCs — one per line&#10;LOT-00003151-E&#10;LOT-00003205-E&#10;LOT-00008062"
+          style="width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--b2);border-radius:6px;padding:9px 12px;font-size:12px;font-family:inherit;resize:vertical;margin-bottom:8px"></textarea>
+        <button onclick="searchPrintBulk()"
+          style="padding:9px 20px;background:var(--yellow);color:#000;border:none;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;font-family:inherit">
+          SEARCH ALL
+        </button>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="printResults" style="flex:1;padding:20px 24px">
+      <div style="color:var(--t3);font-size:11px;letter-spacing:.1em;text-align:center;padding:40px 0">
+        Enter a batch label or car UPC above to search
+      </div>
+    </div>
+  </div>
+
   <!-- OPERATOR ADD/EDIT MODAL -->
   <div id="opModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center">
     <div style="background:var(--surface);border:1px solid var(--b2);border-radius:12px;padding:28px;width:380px;display:flex;flex-direction:column;gap:16px">
@@ -1149,10 +1199,10 @@ function updateClock() {
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  ['exec','lines','qc','runs','upc','scans','corrections','alerts','returns','reporting','operators'].forEach(t => {
+  ['exec','lines','qc','runs','upc','scans','corrections','alerts','returns','reporting','operators','print'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
-  const showDateBar = tab !== 'upc' && tab !== 'scans' && tab !== 'corrections' && tab !== 'returns' && tab !== 'lines' && tab !== 'reporting' && tab !== 'operators';
+  const showDateBar = tab !== 'upc' && tab !== 'scans' && tab !== 'corrections' && tab !== 'returns' && tab !== 'lines' && tab !== 'reporting' && tab !== 'operators' && tab !== 'print';
   document.querySelector('.datebar').style.display = showDateBar ? '' : 'none';
   if (showDateBar) {
     const from = getDateFrom(), to = getDateTo();
@@ -1206,6 +1256,7 @@ async function loadTab(tab) {
     if (tab === 'returns')     await loadReturns();
     if (tab === 'reporting')   await loadReporting(from, to);
     if (tab === 'operators')   await loadOperators();
+    if (tab === 'print')       initPrintTab();
     document.getElementById('lastRefresh').textContent =
       'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
   } catch(e) {
@@ -1213,6 +1264,142 @@ async function loadTab(tab) {
   } finally {
     isRefreshing = false;
     document.getElementById('refreshDot').className = 'refresh-indicator';
+  }
+}
+
+// ── PRINT TAB ────────────────────────────────────────────────
+let printMode = 'single';
+
+function initPrintTab() {
+  // No auto-load needed — user initiates search
+}
+
+function setPrintMode(mode) {
+  printMode = mode;
+  document.getElementById('printSingleInput').style.display = mode === 'single' ? 'block' : 'none';
+  document.getElementById('printBulkInput').style.display   = mode === 'bulk'   ? 'block' : 'none';
+  document.getElementById('printModeSingle').style.background = mode === 'single' ? 'var(--yellow)' : 'var(--surface2)';
+  document.getElementById('printModeSingle').style.color      = mode === 'single' ? '#000' : 'var(--t2)';
+  document.getElementById('printModeSingle').style.border     = mode === 'single' ? 'none' : '1px solid var(--b2)';
+  document.getElementById('printModeBulk').style.background   = mode === 'bulk'   ? 'var(--yellow)' : 'var(--surface2)';
+  document.getElementById('printModeBulk').style.color        = mode === 'bulk'   ? '#000' : 'var(--t2)';
+  document.getElementById('printModeBulk').style.border       = mode === 'bulk'   ? 'none' : '1px solid var(--b2)';
+  document.getElementById('printResults').innerHTML =
+    '<div style="color:var(--t3);font-size:11px;letter-spacing:.1em;text-align:center;padding:40px 0">Enter values above to search</div>';
+}
+
+async function searchPrintSingle() {
+  const val = document.getElementById('printSingleVal').value.trim();
+  if (!val) return;
+  const el = document.getElementById('printResults');
+  el.innerHTML = '<div style="color:var(--t2);font-size:11px;padding:20px 0">Searching...</div>';
+
+  const isCarUpc    = !val.endsWith('-E') && !val.endsWith('-R');
+  const params      = isCarUpc ? { car_upc: val } : { batch_label: val };
+  const r           = await api('getPkgScans', params);
+
+  if (!r.ok || !r.data.length) {
+    el.innerHTML = `<div style="color:var(--red);font-size:12px;padding:20px 0">No pkg scan found for <strong>${val}</strong></div>`;
+    return;
+  }
+  renderPrintResults(r.data);
+}
+
+async function searchPrintBulk() {
+  const raw  = document.getElementById('printBulkVal').value.trim();
+  if (!raw) return;
+  const vals = raw.split('\n').map(v => v.trim()).filter(Boolean);
+  if (!vals.length) return;
+
+  const el = document.getElementById('printResults');
+  el.innerHTML = '<div style="color:var(--t2);font-size:11px;padding:20px 0">Searching ' + vals.length + ' items...</div>';
+
+  // Fetch all in parallel
+  const results = await Promise.all(vals.map(async val => {
+    const isCarUpc = !val.endsWith('-E') && !val.endsWith('-R');
+    const params   = isCarUpc ? { car_upc: val } : { batch_label: val };
+    const r        = await api('getPkgScans', params);
+    return { val, found: r.ok && r.data.length > 0, row: r.ok && r.data[0] ? r.data[0] : null };
+  }));
+
+  renderPrintResults(results.filter(r => r.found).map(r => r.row), results.filter(r => !r.found).map(r => r.val));
+}
+
+function renderPrintResults(rows, notFound = []) {
+  const el = document.getElementById('printResults');
+  if (!rows.length && !notFound.length) {
+    el.innerHTML = '<div style="color:var(--t3);font-size:11px;text-align:center;padding:40px 0">Nothing found</div>';
+    return;
+  }
+
+  const notFoundHtml = notFound.length ? `
+    <div style="margin-bottom:16px">
+      ${notFound.map(v => `<div style="color:var(--red);font-size:11px;padding:4px 0">✗ Not found: <span style="font-family:var(--mono)">${v}</span></div>`).join('')}
+    </div>` : '';
+
+  const rowsHtml = rows.map((row, i) => `
+    <tr id="print-row-${i}">
+      <td style="font-family:var(--mono);font-size:11px;color:var(--yellow)">${row.batch_label}</td>
+      <td style="font-size:11px">${[row.product, row.model, row.color].filter(Boolean).join(' ') || '—'}</td>
+      <td style="font-size:11px">${row.line || '—'}</td>
+      <td style="font-size:11px;text-transform:uppercase">${row.channel || '—'}</td>
+      <td style="font-size:10px;color:var(--t2)">${row.packed_at ? new Date(row.packed_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : '—'}</td>
+      <td id="print-status-${i}">
+        <button onclick="queueReprint(${i},'${row.batch_label}','${row.product||''}','${row.model||''}','${row.color||''}','${row.channel||''}','${row.line||''}')"
+          style="background:var(--yellow);color:#000;border:none;border-radius:4px;padding:5px 12px;font-size:10px;font-weight:700;letter-spacing:.06em;cursor:pointer;font-family:inherit">
+          🖨 PRINT
+        </button>
+      </td>
+    </tr>`).join('');
+
+  el.innerHTML = `
+    ${notFoundHtml}
+    ${rows.length ? `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:11px;color:var(--t2)">${rows.length} label${rows.length>1?'s':''} found</span>
+      ${rows.length > 1 ? `<button onclick="queueAllReprints()" style="background:var(--yellow);color:#000;border:none;border-radius:6px;padding:8px 16px;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;font-family:inherit">🖨 PRINT ALL (${rows.length})</button>` : ''}
+    </div>
+    <table class="data-table" style="width:100%">
+      <thead><tr>
+        <th>Batch Label</th><th>Product</th><th>Line</th><th>Channel</th><th>Packed</th><th></th>
+      </tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>` : ''}
+  `;
+
+  // Store rows for bulk print
+  window._printRows = rows;
+}
+
+async function queueReprint(idx, batchLabel, product, model, color, channel, line) {
+  const statusEl = document.getElementById('print-status-' + idx);
+  statusEl.innerHTML = '<span style="color:var(--t2);font-size:11px">Queuing...</span>';
+  const r = await apiPost('postReprintJob', { batch_label: batchLabel, product, model, color, channel, line });
+  if (r.ok) {
+    statusEl.innerHTML = '<span style="color:var(--green);font-size:11px;font-weight:700">✅ Queued</span>';
+  } else {
+    statusEl.innerHTML = `<span style="color:var(--red);font-size:11px">✗ ${r.error||'Failed'}</span>`;
+  }
+}
+
+async function queueAllReprints() {
+  if (!window._printRows || !window._printRows.length) return;
+  for (let i = 0; i < window._printRows.length; i++) {
+    const row = window._printRows[i];
+    await queueReprint(i, row.batch_label, row.product||'', row.model||'', row.color||'', row.channel||'', row.line||'');
+  }
+}
+
+async function apiPost(action, data) {
+  try {
+    const res = await fetch(`${API}?action=_`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ action, data })
+    });
+    return await res.json();
+  } catch(e) {
+    return { ok: false, error: e.message };
   }
 }
 
