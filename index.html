@@ -2469,8 +2469,9 @@ function renderScanSummary(summary) {
   const colorMap = {
     INW:'#60a5fa', QC_PASS:'var(--green)', QC_FAIL:'var(--red)',
     WKS_IN:'#a78bfa', WKS_OUT:'#a78bfa', PKG:'#8b5cf6', RTO_IN:'var(--orange)',
+    RTD_RETURN:'#14b8a6',
   };
-  const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','PKG','RTO_IN'];
+  const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','PKG','RTO_IN','RTD_RETURN'];
 
   let total, voided, counts = {};
   if (summary && typeof summary === 'object' && summary.total !== undefined) {
