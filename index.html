@@ -1791,11 +1791,17 @@ function renderExecRuns(runs, date) {
 async function loadLines() {
   const data = await api('getLineView', { date: todayStr() });
   if (!data.ok) return;
-  renderLineCards(data.data.lines || []);
+  // Build car/remote lookup: { 'L1:INW:car': 317, 'L1:QC_PASS:car': 284, ... }
+  const crMap = {};
+  (data.data.car_remote || []).forEach(r => {
+    crMap[`${r.line}:${r.activity}:${r.component_type}`] = Number(r.cnt) || 0;
+  });
+  renderLineCards(data.data.lines || [], crMap);
   renderOperatorTable(data.data.operator_stats || []);
 }
 
-function renderLineCards(lines) {
+function renderLineCards(lines, crMap) {
+  crMap = crMap || {};
   const el = document.getElementById('lineCards');
   if (!lines.length) {
     el.innerHTML = '<div class="empty"><span class="empty-icon">🏭</span>No line data for selected date</div>';
@@ -1809,6 +1815,12 @@ function renderLineCards(lines) {
     const firstScan = l.first_scan_at
       ? new Date(l.first_scan_at).toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata'})
       : null;
+    const inwCar    = crMap[`${l.line}:INW:car`];
+    const inwRem    = crMap[`${l.line}:INW:remote`];
+    const passCar   = crMap[`${l.line}:QC_PASS:car`];
+    const passRem   = crMap[`${l.line}:QC_PASS:remote`];
+    const inwSub    = inwCar  != null ? `<div style="font-size:8px;color:var(--t3);margin-top:2px">${inwCar}C · ${inwRem||0}R</div>`  : '';
+    const passSub   = passCar != null ? `<div style="font-size:8px;color:var(--t3);margin-top:2px">${passCar}C · ${passRem||0}R</div>` : '';
     return `
       <div class="line-card">
         <div class="lc-header">
@@ -1828,10 +1840,12 @@ function renderLineCards(lines) {
           <div class="lc-stat">
             <div class="lc-stat-val" style="color:var(--text)">${fmt(l.inw_count)}</div>
             <div class="lc-stat-label">INW</div>
+            ${inwSub}
           </div>
           <div class="lc-stat">
             <div class="lc-stat-val" style="color:var(--green)">${fmt(l.qc_pass_count)}</div>
             <div class="lc-stat-label">QC Pass</div>
+            ${passSub}
           </div>
           <div class="lc-stat">
             <div class="lc-stat-val" style="color:var(--red)">${fmt(l.qc_fail_count)}</div>
