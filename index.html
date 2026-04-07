@@ -560,6 +560,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div class="tab" data-tab="alerts" onclick="switchTab('alerts')">Alerts <span id="alertsBadge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle"></span></div>
     <div class="tab" data-tab="returns" onclick="switchTab('returns')">Returns <span id="returnsBadge" style="display:none;background:var(--orange);color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle"></span></div>
     <div class="tab" data-tab="reporting" onclick="switchTab('reporting')">Reporting</div>
+    <div class="tab" data-tab="operators" onclick="switchTab('operators')">Operators</div>
   </div>
 
   <div class="datebar">
@@ -863,6 +864,90 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
 </div>
 
+<!-- OPERATORS TAB -->
+<div id="tab-operators" class="content" style="display:none;flex-direction:column;padding:0;overflow:hidden">
+  <div style="padding:16px 20px;border-bottom:1px solid var(--b2);display:flex;align-items:center;gap:12px;flex-shrink:0;flex-wrap:wrap">
+    <button onclick="openAddOperatorModal()" style="background:var(--yellow);color:#000;border:none;padding:8px 16px;border-radius:6px;font-weight:700;font-size:11px;letter-spacing:.08em;cursor:pointer;font-family:inherit">＋ ADD OPERATOR</button>
+    <select id="opFilterRole" onchange="renderOperatorsTable()" style="background:var(--surface2);color:var(--text);border:1px solid var(--b2);padding:7px 10px;border-radius:6px;font-size:11px;font-family:inherit">
+      <option value="">All Roles</option>
+      <option value="assembly">Assembly</option>
+      <option value="qc_inline">QC Inline</option>
+      <option value="qc_audit">QC Audit</option>
+      <option value="repair">Repair</option>
+      <option value="packing">Packing</option>
+      <option value="rtd">RTD</option>
+      <option value="store">Store</option>
+      <option value="supervisor">Supervisor</option>
+      <option value="line_manager">Line Manager</option>
+      <option value="production_manager">Production Manager</option>
+      <option value="admin">Admin</option>
+    </select>
+    <select id="opFilterLine" onchange="renderOperatorsTable()" style="background:var(--surface2);color:var(--text);border:1px solid var(--b2);padding:7px 10px;border-radius:6px;font-size:11px;font-family:inherit">
+      <option value="">All Lines</option>
+      <option value="L1">L1</option>
+      <option value="L2">L2</option>
+      <option value="L3">L3</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2);cursor:pointer">
+      <input type="checkbox" id="opFilterActive" checked onchange="renderOperatorsTable()"> Active only
+    </label>
+    <span id="opCount" style="font-size:11px;color:var(--t3);margin-left:auto"></span>
+  </div>
+  <div style="flex:1;overflow-y:auto">
+    <table class="data-table" style="width:100%">
+      <thead><tr>
+        <th>Name</th><th>Role</th><th>Line</th><th>Status</th><th>QR Generated</th><th>Sessions Today</th><th>Actions</th>
+      </tr></thead>
+      <tbody id="operatorsTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- OPERATOR ADD/EDIT MODAL -->
+<div id="opModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--b2);border-radius:12px;padding:28px;width:380px;display:flex;flex-direction:column;gap:16px">
+    <div style="font-size:14px;font-weight:700;letter-spacing:.06em" id="opModalTitle">ADD OPERATOR</div>
+    <input type="hidden" id="opModalId">
+    <div>
+      <div style="font-size:10px;color:var(--t3);letter-spacing:.1em;margin-bottom:6px">NAME</div>
+      <input id="opModalName" type="text" placeholder="Full name" style="width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--b2);border-radius:6px;padding:9px 12px;font-size:12px;font-family:inherit">
+    </div>
+    <div>
+      <div style="font-size:10px;color:var(--t3);letter-spacing:.1em;margin-bottom:6px">ROLE</div>
+      <select id="opModalRole" style="width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--b2);border-radius:6px;padding:9px 12px;font-size:12px;font-family:inherit">
+        <option value="assembly">Assembly</option>
+        <option value="qc_inline">QC Inline</option>
+        <option value="qc_audit">QC Audit</option>
+        <option value="repair">Repair</option>
+        <option value="packing">Packing</option>
+        <option value="rtd">RTD</option>
+        <option value="store">Store</option>
+        <option value="supervisor">Supervisor</option>
+        <option value="line_manager">Line Manager</option>
+        <option value="production_manager">Production Manager</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div>
+      <div style="font-size:10px;color:var(--t3);letter-spacing:.1em;margin-bottom:6px">DEFAULT LINE</div>
+      <select id="opModalLine" style="width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--b2);border-radius:6px;padding:9px 12px;font-size:12px;font-family:inherit">
+        <option value="">No default</option>
+        <option value="L1">L1</option>
+        <option value="L2">L2</option>
+        <option value="L3">L3</option>
+      </select>
+    </div>
+    <div id="opModalErr" style="font-size:11px;color:var(--red);min-height:16px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeOpModal()" style="flex:1;padding:10px;background:var(--surface2);color:var(--t2);border:1px solid var(--b2);border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px">Cancel</button>
+      <button onclick="submitOpModal()" style="flex:2;padding:10px;background:var(--yellow);color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-family:inherit;font-size:12px">SAVE</button>
+    </div>
+  </div>
+</div>
+
+<!-- OPERATOR QR PRINT WINDOW TEMPLATE -->
+<div id="opQrPrintArea" style="display:none"></div>
+
 <!-- RETURNS ACTION MODAL -->
 <div class="modal-overlay" id="returnsActionModal">
   <div class="modal-box">
@@ -1064,10 +1149,10 @@ function updateClock() {
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  ['exec','lines','qc','runs','upc','scans','corrections','alerts','returns','reporting'].forEach(t => {
+  ['exec','lines','qc','runs','upc','scans','corrections','alerts','returns','reporting','operators'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
-  const showDateBar = tab !== 'upc' && tab !== 'scans' && tab !== 'corrections' && tab !== 'returns' && tab !== 'lines' && tab !== 'reporting';
+  const showDateBar = tab !== 'upc' && tab !== 'scans' && tab !== 'corrections' && tab !== 'returns' && tab !== 'lines' && tab !== 'reporting' && tab !== 'operators';
   document.querySelector('.datebar').style.display = showDateBar ? '' : 'none';
   if (showDateBar) {
     const from = getDateFrom(), to = getDateTo();
@@ -1118,6 +1203,7 @@ async function loadTab(tab) {
     if (tab === 'alerts')      await loadAlerts(from, to);
     if (tab === 'returns')     await loadReturns();
     if (tab === 'reporting')   await loadReporting(from, to);
+    if (tab === 'operators')   await loadOperators();
     document.getElementById('lastRefresh').textContent =
       'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
   } catch(e) {
@@ -1126,6 +1212,186 @@ async function loadTab(tab) {
     isRefreshing = false;
     document.getElementById('refreshDot').className = 'refresh-indicator';
   }
+}
+
+// ── OPERATORS VIEW ───────────────────────────────────────────
+let allOperators    = [];
+let operatorSessions = {};
+
+async function loadOperators() {
+  const [opsR, sessR] = await Promise.all([
+    api('getOperators', {}),
+    api('getOperatorSessions', {
+      date_from: new Date().toISOString().slice(0,10) + 'T00:00:00.000Z',
+      date_to:   new Date().toISOString().slice(0,10) + 'T23:59:59.999Z',
+    })
+  ]);
+  if (opsR.ok) allOperators = opsR.data;
+
+  // Count sessions per operator for today
+  operatorSessions = {};
+  if (sessR.ok) {
+    sessR.data.forEach(s => {
+      operatorSessions[s.operator_id] = (operatorSessions[s.operator_id] || 0) + 1;
+    });
+  }
+  renderOperatorsTable();
+}
+
+function renderOperatorsTable() {
+  const roleFilter   = document.getElementById('opFilterRole').value;
+  const lineFilter   = document.getElementById('opFilterLine').value;
+  const activeOnly   = document.getElementById('opFilterActive').checked;
+  const canEdit      = ['admin','production_manager'].includes(userRole);
+
+  let rows = allOperators;
+  if (activeOnly)  rows = rows.filter(o => o.is_active);
+  if (roleFilter)  rows = rows.filter(o => o.role === roleFilter);
+  if (lineFilter)  rows = rows.filter(o => o.line === lineFilter);
+
+  document.getElementById('opCount').textContent = rows.length + ' operators';
+
+  const tbody = document.getElementById('operatorsTableBody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:32px">No operators found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(op => {
+    const statusDot = op.is_active
+      ? '<span style="color:var(--green);font-size:10px;font-weight:700">● ACTIVE</span>'
+      : '<span style="color:var(--t3);font-size:10px;font-weight:700">○ INACTIVE</span>';
+    const qrDate = op.qr_generated_at
+      ? new Date(op.qr_generated_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})
+      : '<span style="color:var(--t3)">—</span>';
+    const sessCount = operatorSessions[op.id] || 0;
+    const sessBadge = sessCount > 0
+      ? `<span style="background:var(--green);color:#000;font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px">${sessCount}</span>`
+      : '<span style="color:var(--t3)">—</span>';
+    const roleLabel = (op.role || '').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+    const actions = canEdit ? `
+      <button onclick="openEditOperatorModal('${op.id}')" style="background:var(--surface2);color:var(--t2);border:1px solid var(--b2);padding:4px 10px;border-radius:4px;font-size:10px;cursor:pointer;font-family:inherit;margin-right:4px">Edit</button>
+      <button onclick="printOperatorQr('${op.id}')" style="background:var(--surface2);color:var(--t2);border:1px solid var(--b2);padding:4px 10px;border-radius:4px;font-size:10px;cursor:pointer;font-family:inherit;margin-right:4px">Print QR</button>
+      <button onclick="toggleOperatorActive('${op.id}',${op.is_active})" style="background:var(--surface2);color:${op.is_active?'var(--red)':'var(--green)'};border:1px solid var(--b2);padding:4px 10px;border-radius:4px;font-size:10px;cursor:pointer;font-family:inherit">${op.is_active?'Deactivate':'Reactivate'}</button>
+    ` : `
+      <button onclick="printOperatorQr('${op.id}')" style="background:var(--surface2);color:var(--t2);border:1px solid var(--b2);padding:4px 10px;border-radius:4px;font-size:10px;cursor:pointer;font-family:inherit">Print QR</button>
+    `;
+    return `<tr>
+      <td style="font-weight:600">${op.name}</td>
+      <td>${roleLabel}</td>
+      <td>${op.line || '<span style="color:var(--t3)">—</span>'}</td>
+      <td>${statusDot}</td>
+      <td style="font-size:10px;color:var(--t2)">${qrDate}</td>
+      <td>${sessBadge}</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+function openAddOperatorModal() {
+  document.getElementById('opModalTitle').textContent = 'ADD OPERATOR';
+  document.getElementById('opModalId').value   = '';
+  document.getElementById('opModalName').value = '';
+  document.getElementById('opModalRole').value = 'assembly';
+  document.getElementById('opModalLine').value = '';
+  document.getElementById('opModalErr').textContent = '';
+  document.getElementById('opModal').style.display = 'flex';
+}
+
+function openEditOperatorModal(id) {
+  const op = allOperators.find(o => o.id === id);
+  if (!op) return;
+  document.getElementById('opModalTitle').textContent = 'EDIT OPERATOR';
+  document.getElementById('opModalId').value   = op.id;
+  document.getElementById('opModalName').value = op.name;
+  document.getElementById('opModalRole').value = op.role;
+  document.getElementById('opModalLine').value = op.line || '';
+  document.getElementById('opModalErr').textContent = '';
+  document.getElementById('opModal').style.display = 'flex';
+}
+
+function closeOpModal() {
+  document.getElementById('opModal').style.display = 'none';
+}
+
+async function submitOpModal() {
+  const id   = document.getElementById('opModalId').value.trim();
+  const name = document.getElementById('opModalName').value.trim();
+  const role = document.getElementById('opModalRole').value;
+  const line = document.getElementById('opModalLine').value || null;
+  const errEl = document.getElementById('opModalErr');
+
+  if (!name) { errEl.textContent = 'Name is required'; return; }
+
+  const payload = { name, role, line };
+  if (id) payload.id = id;
+
+  const r = await api('saveOperator', payload);
+  if (!r.ok) { errEl.textContent = r.error || 'Save failed'; return; }
+
+  closeOpModal();
+  await loadOperators();
+}
+
+async function toggleOperatorActive(id, currentlyActive) {
+  const label = currentlyActive ? 'deactivate' : 'reactivate';
+  if (!confirm(`Are you sure you want to ${label} this operator?`)) return;
+  const r = await api('saveOperator', { id, is_active: !currentlyActive });
+  if (!r.ok) { alert('Failed: ' + (r.error || 'unknown error')); return; }
+  await loadOperators();
+}
+
+async function printOperatorQr(id) {
+  const op = allOperators.find(o => o.id === id);
+  if (!op || !op.qr_code) { alert('No QR code for this operator'); return; }
+
+  // Generate QR
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:200px;background:#fff;z-index:-1;';
+  document.body.appendChild(container);
+  const qrDiv = document.createElement('div');
+  container.appendChild(qrDiv);
+
+  new QRCode(qrDiv, {
+    text:         op.qr_code,
+    width:        120,
+    height:       120,
+    colorDark:    '#000000',
+    colorLight:   '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H,
+  });
+
+  setTimeout(() => {
+    const canvas = qrDiv.querySelector('canvas');
+    const qrUrl  = canvas ? canvas.toDataURL('image/png') : null;
+    document.body.removeChild(container);
+
+    const roleLabel = (op.role || '').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+    const lineLabel = op.line ? ' · ' + op.line : '';
+
+    const win = window.open('', '_blank', 'width=320,height=420');
+    win.document.write(`<!DOCTYPE html><html><head><title>QR Card — ${op.name}</title>
+    <style>
+      body{margin:0;padding:20px;font-family:'JetBrains Mono',monospace;background:#fff;display:flex;justify-content:center}
+      .card{width:240px;border:2px solid #000;border-radius:10px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:10px}
+      .logo{font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:#555;margin-bottom:2px}
+      .name{font-size:15px;font-weight:700;text-align:center;line-height:1.2}
+      .role{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#555}
+      .qr{margin:8px 0}
+      .code{font-size:8px;color:#aaa;letter-spacing:.06em}
+      @media print{body{padding:0}@page{margin:10mm}}
+    </style></head><body>
+    <div class="card">
+      <div class="logo">Legend of Toys</div>
+      <div class="name">${op.name}</div>
+      <div class="role">${roleLabel}${lineLabel}</div>
+      <div class="qr">${qrUrl ? `<img src="${qrUrl}" width="120" height="120">` : '—'}</div>
+      <div class="code">${op.qr_code}</div>
+    </div>
+    <script>window.onload=()=>window.print()<\/script>
+    </body></html>`);
+    win.document.close();
+  }, 500);
 }
 
 // ── EXECUTIVE VIEW ───────────────────────────────────────────
