@@ -1623,8 +1623,8 @@ async function loadExec(date) {
 function renderExecCards(s, scan) {
   const passRate = s.today_pass_rate != null ? s.today_pass_rate + '%' : '—';
   const prClass  = s.today_pass_rate >= 95 ? 'green' : s.today_pass_rate >= 85 ? 'yellow' : s.today_pass_rate != null ? 'red' : '';
-  const qcCar    = scan?.QC_PASS_car    != null ? `Car ${fmt(scan.QC_PASS_car)} · Remote ${fmt(scan.QC_PASS_remote)}` : `${fmt(s.today_inw)} inwarded`;
-  const inwSplit = scan?.INW_car        != null ? `Car ${fmt(scan.INW_car)} · Remote ${fmt(scan.INW_remote)}` : '';
+  const qcCar    = scan?.QC_PASS_remote != null ? `${fmt(scan.QC_PASS_remote)} remotes tracked` : `${fmt(s.today_inw)} inwarded`;
+  const inwSplit = scan?.INW_remote     != null ? `${fmt(scan.INW_remote)} remotes tracked` : '';
   document.getElementById('execCards').innerHTML = `
     <div class="card hi">
       <div class="card-label">QC Pass — Today</div>
