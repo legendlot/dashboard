@@ -553,7 +553,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div class="tab active" data-tab="exec" onclick="switchTab('exec')">Executive</div>
     <div class="tab" data-tab="lines" onclick="switchTab('lines')">Lines</div>
     <div class="tab" data-tab="qc" onclick="switchTab('qc')">QC</div>
-    <div class="tab" data-tab="runs" onclick="switchTab('runs')">Runs</div>
+
     <div class="tab" data-tab="upc" onclick="switchTab('upc')">UPC Generator</div>
     <div class="tab" data-tab="scans" onclick="switchTab('scans')">Scans</div>
     <div class="tab" data-tab="corrections" onclick="switchTab('corrections')">Corrections</div>
@@ -603,6 +603,12 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         <div class="loading"><div class="spinner"></div> Loading...</div>
       </div>
     </div>
+    <div>
+      <div class="sec-label">Plan vs Actual — Today</div>
+      <div class="table-wrap" id="execPvaTable">
+        <div class="loading"><div class="spinner"></div> Loading...</div>
+      </div>
+    </div>
   </div>
 
   <!-- LINES TAB -->
@@ -649,15 +655,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     </div>
   </div>
 
-  <!-- RUNS TAB -->
-  <div id="tab-runs" class="content" style="display:none">
-    <div>
-      <div class="sec-label">Plan vs Actual</div>
-      <div class="table-wrap" id="pvaTable">
-        <div class="loading"><div class="spinner"></div></div>
-      </div>
-    </div>
-  </div>
+
 
   <!-- UPC GENERATOR TAB -->
   <div id="tab-upc" class="content" style="display:none">
@@ -818,6 +816,16 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
   </div>
   <!-- REPORTING TAB -->
   <div id="tab-reporting" class="content" style="display:none">
+
+    <div style="display:flex;align-items:center;gap:10px;padding:12px 0 4px;flex-wrap:wrap">
+      <span style="font-size:10px;color:var(--t3);letter-spacing:.1em">FROM</span>
+      <input type="date" id="reportFrom" class="date-input" onchange="loadReporting()">
+      <span style="font-size:10px;color:var(--t3);letter-spacing:.1em">TO</span>
+      <input type="date" id="reportTo" class="date-input" onchange="loadReporting()">
+      <button class="date-btn" onclick="setReportToday()">Today</button>
+      <button class="date-btn" onclick="setReportWeek()">This Week</button>
+      <button class="date-btn" onclick="setReportMonth()">This Month</button>
+    </div>
 
     <div>
       <div class="sec-label">Production Summary</div>
@@ -1196,35 +1204,20 @@ function updateClock() {
 }
 
 // ── TABS ─────────────────────────────────────────────────────
-// Per-tab independent date state
-const TAB_DATE_TABS = ['exec', 'qc', 'runs', 'alerts'];
-let tabDates = {};
-
 function switchTab(tab) {
-  // Save the current tab's date state before leaving
-  if (TAB_DATE_TABS.includes(activeTab)) {
-    tabDates[activeTab] = { from: getDateFrom(), to: getDateTo() };
-  }
-
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  ['exec','lines','qc','runs','upc','scans','corrections','alerts','returns','reporting','operators','print'].forEach(t => {
+  ['exec','lines','qc','upc','scans','corrections','alerts','returns','reporting','operators','print'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
-
-  const showDateBar = TAB_DATE_TABS.includes(tab);
+  // Only Executive has the shared date bar
+  const showDateBar = tab === 'exec';
   document.querySelector('.datebar').style.display = showDateBar ? '' : 'none';
-
   if (showDateBar) {
-    // Restore this tab's own dates — default to today on first visit
-    const saved = tabDates[tab] || { from: todayStr(), to: todayStr() };
-    document.getElementById('dateFrom').value = saved.from;
-    document.getElementById('dateTo').value   = saved.to;
-    const isRange = saved.from !== saved.to;
+    const isRange = getDateFrom() !== getDateTo();
     document.getElementById('dateToLabel').style.display = isRange ? '' : 'none';
     document.getElementById('dateTo').style.display      = isRange ? '' : 'none';
   }
-
   loadTab(tab);
   setTimeout(setContentHeight, 0);
 }
@@ -1262,14 +1255,13 @@ async function loadTab(tab) {
     const from = getDateFrom(), to = getDateTo();
     if (tab === 'exec')        await loadExec(from);
     if (tab === 'lines')       await loadLines();
-    if (tab === 'qc')          await loadQC(from, to);
-    if (tab === 'runs')        await loadRuns(from, to);
+    if (tab === 'qc')          await loadQC(todayStr(), todayStr());
     if (tab === 'upc')         await loadUpcGen();
     if (tab === 'scans')       await loadScans();
     if (tab === 'corrections') await loadCorrections();
-    if (tab === 'alerts')      await loadAlerts(from, to);
+    if (tab === 'alerts')      await loadAlerts(todayStr(), todayStr());
     if (tab === 'returns')     await loadReturns();
-    if (tab === 'reporting')   await loadReporting(from, to);
+    if (tab === 'reporting')   await loadReporting();
     if (tab === 'operators')   await loadOperators();
     if (tab === 'print')       initPrintTab();
     document.getElementById('lastRefresh').textContent =
@@ -1611,7 +1603,10 @@ async function printOperatorQr(id) {
 
 // ── EXECUTIVE VIEW ───────────────────────────────────────────
 async function loadExec(date) {
-  const data = await api('getProductionDashboard', { date });
+  const [data, pvaData] = await Promise.all([
+    api('getProductionDashboard', { date }),
+    api('getPlanVsActual', { from: date, to: date }),
+  ]);
   if (!data.ok) return;
   const s = data.data.summary;
   const runs = data.data.open_runs || [];
@@ -1619,6 +1614,14 @@ async function loadExec(date) {
   renderExecCards(s);
   renderHourlyChart(hourly);
   renderExecRuns(runs, date);
+  const pvaEl = document.getElementById('execPvaTable');
+  if (pvaEl) {
+    if (pvaData.ok && (pvaData.data || []).length) {
+      pvaEl.innerHTML = renderPVAHtml(pvaData.data);
+    } else {
+      pvaEl.innerHTML = '<div class="empty"><span class="empty-icon">📋</span>No production runs today</div>';
+    }
+  }
 }
 
 function renderExecCards(s) {
@@ -1686,27 +1689,33 @@ function renderHourlyChart(rows) {
     return;
   }
   const hours = {};
-  const lines = new Set();
   rows.forEach(r => {
     const h = r.hour;
     if (!hours[h]) hours[h] = {};
-    lines.add(r.line);
     hours[h][r.line] = (hours[h][r.line] || 0) + r.unit_count;
   });
   const maxVal = Math.max(...Object.values(hours).map(h => Object.values(h).reduce((a,b) => a+b, 0)), 1);
+  const lineColors = { L1: 'var(--yellow)', L2: 'var(--blue)', L3: 'var(--green)' };
+  const lineOrder  = ['L1', 'L2', 'L3'];
 
   const shiftHours = Array.from({length:10}, (_, i) => i+9);
   el.innerHTML = shiftHours.map(h => {
-    const data = hours[h] || {};
-    const total = Object.values(data).reduce((a,b) => a+b, 0);
+    const data  = hours[h] || {};
+    const total = lineOrder.reduce((a, l) => a + (data[l] || 0), 0);
     const heightPct = Math.round((total / maxVal) * 100);
+    const segments = lineOrder
+      .filter(l => data[l] > 0)
+      .map(l => `<div style="flex:${data[l]};background:${lineColors[l]};border-radius:1px" title="${l}: ${data[l]}"></div>`)
+      .join('');
     return `
       <div class="bar-col">
         <div style="font-size:9px;color:var(--t2);font-weight:600;min-height:14px;text-align:center;line-height:1">
           ${total > 0 ? total : ''}
         </div>
         <div class="bar-fill-wrap">
-          <div class="bar-fill l1" style="height:${heightPct}%;width:100%;" title="${h}:00 — ${total} units"></div>
+          <div style="height:${heightPct}%;width:100%;display:flex;flex-direction:column-reverse;border-radius:2px 2px 0 0;overflow:hidden;min-height:${total>0?'2px':'0'}">
+            ${segments}
+          </div>
         </div>
         <div class="bar-label">${h}</div>
       </div>
@@ -2046,13 +2055,9 @@ async function loadRuns(from, to) {
   renderPVA(data.data || []);
 }
 
-function renderPVA(rows) {
-  const el = document.getElementById('pvaTable');
-  if (!rows.length) {
-    el.innerHTML = '<div class="empty"><span class="empty-icon">📋</span>No production runs in selected period</div>';
-    return;
-  }
-  el.innerHTML = `
+function renderPVAHtml(rows) {
+  if (!rows.length) return '<div class="empty"><span class="empty-icon">📋</span>No production runs in selected period</div>';
+  return `
     <table>
       <thead>
         <tr>
@@ -2085,6 +2090,13 @@ function renderPVA(rows) {
       </tbody>
     </table>
   `;
+}
+
+async function loadRuns(from, to) {
+  const data = await api('getPlanVsActual', { from, to });
+  if (!data.ok) return;
+  const el = document.getElementById('execPvaTable');
+  if (el) el.innerHTML = renderPVAHtml(data.data || []);
 }
 
 // ── HELPERS ──────────────────────────────────────────────────
@@ -2522,16 +2534,25 @@ function renderScanSummary(summary) {
   };
   const activities = ['INW','QC_PASS','QC_FAIL','WKS_IN','WKS_OUT','PKG','RTO_IN','RTD_RETURN'];
 
-  let total, voided, counts = {};
+  let total, voided, counts = {}, carCounts = {}, remoteCounts = {};
   if (summary && typeof summary === 'object' && summary.total !== undefined) {
     total  = summary.total  || 0;
     voided = summary.voided || 0;
     activities.forEach(a => { counts[a] = summary[a] || 0; });
+    carCounts.INW     = summary['INW_car']        || 0;
+    remoteCounts.INW  = summary['INW_remote']     || 0;
+    carCounts.QC_PASS    = summary['QC_PASS_car']    || 0;
+    remoteCounts.QC_PASS = summary['QC_PASS_remote'] || 0;
   } else {
-    // RPC failed — show dashes, do not count from limited display rows
     activities.forEach(a => { counts[a] = '—'; });
     total  = '—';
     voided = '—';
+  }
+
+  function splitSub(activity) {
+    const c = carCounts[activity], r = remoteCounts[activity];
+    if (c == null || r == null || counts[activity] === '—') return '';
+    return `<div style="font-size:9px;color:var(--t3);margin-top:3px">Car ${c} · Remote ${r}</div>`;
   }
 
   const el = document.getElementById('scanSummaryCards');
@@ -2543,8 +2564,9 @@ function renderScanSummary(summary) {
     ${activities.map(a => `
     <div style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;padding:10px 14px;cursor:pointer"
          onclick="setScanFilter('${a}')">
-      <div style="font-size:9px;color:var(--t3);letter-spacing:.12em;margin-bottom:4px">${a.replace('_',' ')}</div>
+      <div style="font-size:9px;color:var(--t3);letter-spacing:.12em;margin-bottom:4px">${a.replace(/_/g,' ')}</div>
       <div style="font-size:22px;font-weight:700;color:${colorMap[a]||'var(--text)'}">${counts[a]||0}</div>
+      ${splitSub(a)}
     </div>`).join('')}
     <div style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;padding:10px 14px">
       <div style="font-size:9px;color:var(--t3);letter-spacing:.12em;margin-bottom:4px">VOIDED</div>
@@ -3176,7 +3198,28 @@ async function submitReturnsAction(outcome) {
 }
 
 // ── REPORTING TAB ────────────────────────────────────────────
-async function loadReporting(from, to) {
+function setReportToday() {
+  const t = todayStr();
+  document.getElementById('reportFrom').value = t;
+  document.getElementById('reportTo').value   = t;
+  loadReporting();
+}
+function setReportWeek() {
+  const mon = new Date(); mon.setDate(mon.getDate() - mon.getDay() + 1);
+  document.getElementById('reportFrom').value = mon.toISOString().split('T')[0];
+  document.getElementById('reportTo').value   = todayStr();
+  loadReporting();
+}
+function setReportMonth() {
+  const from = new Date(); from.setDate(1);
+  document.getElementById('reportFrom').value = from.toISOString().split('T')[0];
+  document.getElementById('reportTo').value   = todayStr();
+  loadReporting();
+}
+
+async function loadReporting() {
+  const from = document.getElementById('reportFrom')?.value || todayStr();
+  const to   = document.getElementById('reportTo')?.value   || todayStr();
   ['reportingCards','reportingCycleTimes','reportingQCSummary',
    'reportingProductTable','reportingDailyTable','reportingLineTable'].forEach(id => {
     const el = document.getElementById(id);
