@@ -1296,7 +1296,7 @@ async function searchPrintSingle() {
 
   const isCarUpc    = !val.endsWith('-E') && !val.endsWith('-R');
   const params      = isCarUpc ? { car_upc: val } : { batch_label: val };
-  const r           = await api('getPkgScans', params);
+  const r           = await api('getPkgScanLookup', params);
 
   if (!r.ok || !r.data.length) {
     el.innerHTML = `<div style="color:var(--red);font-size:12px;padding:20px 0">No pkg scan found for <strong>${val}</strong></div>`;
@@ -1318,7 +1318,7 @@ async function searchPrintBulk() {
   const results = await Promise.all(vals.map(async val => {
     const isCarUpc = !val.endsWith('-E') && !val.endsWith('-R');
     const params   = isCarUpc ? { car_upc: val } : { batch_label: val };
-    const r        = await api('getPkgScans', params);
+    const r        = await api('getPkgScanLookup', params);
     return { val, found: r.ok && r.data.length > 0, row: r.ok && r.data[0] ? r.data[0] : null };
   }));
 
