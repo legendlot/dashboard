@@ -1840,7 +1840,7 @@ function renderLineCards(lines, crMap) {
           <div class="lc-stat">
             <div class="lc-stat-val" style="color:var(--text)">${fmt(inwCar != null ? inwCar : l.inw_count)}</div>
             <div class="lc-stat-label">INW</div>
-            ${inwCar != null ? `<div style="font-size:8px;color:var(--t3);margin-top:2px">${fmt(inwRem||0)} remotes</div>` : ''}
+            <div style="font-size:8px;color:var(--t3);margin-top:2px">${fmt(l.inw_remote_count||0)} remotes</div>
           </div>
           <div class="lc-stat">
             <div class="lc-stat-val" style="color:var(--green)">${fmt(passCar != null ? passCar : l.qc_pass_count)}</div>
