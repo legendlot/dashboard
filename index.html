@@ -862,59 +862,12 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
   </div>
 
-</div>
-
-<!-- OPERATORS TAB -->
-<div id="tab-operators" class="content" style="display:none;flex-direction:column;padding:0;overflow:hidden">
-  <div style="padding:16px 20px;border-bottom:1px solid var(--b2);display:flex;align-items:center;gap:12px;flex-shrink:0;flex-wrap:wrap">
-    <button onclick="openAddOperatorModal()" style="background:var(--yellow);color:#000;border:none;padding:8px 16px;border-radius:6px;font-weight:700;font-size:11px;letter-spacing:.08em;cursor:pointer;font-family:inherit">＋ ADD OPERATOR</button>
-    <select id="opFilterRole" onchange="renderOperatorsTable()" style="background:var(--surface2);color:var(--text);border:1px solid var(--b2);padding:7px 10px;border-radius:6px;font-size:11px;font-family:inherit">
-      <option value="">All Roles</option>
-      <option value="assembly">Assembly</option>
-      <option value="qc_inline">QC Inline</option>
-      <option value="qc_audit">QC Audit</option>
-      <option value="repair">Repair</option>
-      <option value="packing">Packing</option>
-      <option value="rtd">RTD</option>
-      <option value="store">Store</option>
-      <option value="supervisor">Supervisor</option>
-      <option value="line_manager">Line Manager</option>
-      <option value="production_manager">Production Manager</option>
-      <option value="admin">Admin</option>
-    </select>
-    <select id="opFilterLine" onchange="renderOperatorsTable()" style="background:var(--surface2);color:var(--text);border:1px solid var(--b2);padding:7px 10px;border-radius:6px;font-size:11px;font-family:inherit">
-      <option value="">All Lines</option>
-      <option value="L1">L1</option>
-      <option value="L2">L2</option>
-      <option value="L3">L3</option>
-    </select>
-    <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2);cursor:pointer">
-      <input type="checkbox" id="opFilterActive" checked onchange="renderOperatorsTable()"> Active only
-    </label>
-    <span id="opCount" style="font-size:11px;color:var(--t3);margin-left:auto"></span>
-  </div>
-  <div style="flex:1;overflow-y:auto">
-    <table class="data-table" style="width:100%">
-      <thead><tr>
-        <th>Name</th><th>Role</th><th>Line</th><th>Status</th><th>QR Generated</th><th>Sessions Today</th><th>Actions</th>
-      </tr></thead>
-      <tbody id="operatorsTableBody"></tbody>
-    </table>
-  </div>
-</div>
-
-<!-- OPERATOR ADD/EDIT MODAL -->
-<div id="opModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center">
-  <div style="background:var(--surface);border:1px solid var(--b2);border-radius:12px;padding:28px;width:380px;display:flex;flex-direction:column;gap:16px">
-    <div style="font-size:14px;font-weight:700;letter-spacing:.06em" id="opModalTitle">ADD OPERATOR</div>
-    <input type="hidden" id="opModalId">
-    <div>
-      <div style="font-size:10px;color:var(--t3);letter-spacing:.1em;margin-bottom:6px">NAME</div>
-      <input id="opModalName" type="text" placeholder="Full name" style="width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--b2);border-radius:6px;padding:9px 12px;font-size:12px;font-family:inherit">
-    </div>
-    <div>
-      <div style="font-size:10px;color:var(--t3);letter-spacing:.1em;margin-bottom:6px">ROLE</div>
-      <select id="opModalRole" style="width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--b2);border-radius:6px;padding:9px 12px;font-size:12px;font-family:inherit">
+  <!-- OPERATORS TAB -->
+  <div id="tab-operators" class="content" style="display:none;flex-direction:column;padding:0;overflow:hidden">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--b2);display:flex;align-items:center;gap:12px;flex-shrink:0;flex-wrap:wrap">
+      <button onclick="openAddOperatorModal()" style="background:var(--yellow);color:#000;border:none;padding:8px 16px;border-radius:6px;font-weight:700;font-size:11px;letter-spacing:.08em;cursor:pointer;font-family:inherit">＋ ADD OPERATOR</button>
+      <select id="opFilterRole" onchange="renderOperatorsTable()" style="background:var(--surface2);color:var(--text);border:1px solid var(--b2);padding:7px 10px;border-radius:6px;font-size:11px;font-family:inherit">
+        <option value="">All Roles</option>
         <option value="assembly">Assembly</option>
         <option value="qc_inline">QC Inline</option>
         <option value="qc_audit">QC Audit</option>
@@ -927,26 +880,73 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         <option value="production_manager">Production Manager</option>
         <option value="admin">Admin</option>
       </select>
-    </div>
-    <div>
-      <div style="font-size:10px;color:var(--t3);letter-spacing:.1em;margin-bottom:6px">DEFAULT LINE</div>
-      <select id="opModalLine" style="width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--b2);border-radius:6px;padding:9px 12px;font-size:12px;font-family:inherit">
-        <option value="">No default</option>
+      <select id="opFilterLine" onchange="renderOperatorsTable()" style="background:var(--surface2);color:var(--text);border:1px solid var(--b2);padding:7px 10px;border-radius:6px;font-size:11px;font-family:inherit">
+        <option value="">All Lines</option>
         <option value="L1">L1</option>
         <option value="L2">L2</option>
         <option value="L3">L3</option>
       </select>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2);cursor:pointer">
+        <input type="checkbox" id="opFilterActive" checked onchange="renderOperatorsTable()"> Active only
+      </label>
+      <span id="opCount" style="font-size:11px;color:var(--t3);margin-left:auto"></span>
     </div>
-    <div id="opModalErr" style="font-size:11px;color:var(--red);min-height:16px"></div>
-    <div style="display:flex;gap:8px">
-      <button onclick="closeOpModal()" style="flex:1;padding:10px;background:var(--surface2);color:var(--t2);border:1px solid var(--b2);border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px">Cancel</button>
-      <button onclick="submitOpModal()" style="flex:2;padding:10px;background:var(--yellow);color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-family:inherit;font-size:12px">SAVE</button>
+    <div style="flex:1;overflow-y:auto">
+      <table class="data-table" style="width:100%">
+        <thead><tr>
+          <th>Name</th><th>Role</th><th>Line</th><th>Status</th><th>QR Generated</th><th>Sessions Today</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="operatorsTableBody"></tbody>
+      </table>
     </div>
   </div>
-</div>
 
-<!-- OPERATOR QR PRINT WINDOW TEMPLATE -->
-<div id="opQrPrintArea" style="display:none"></div>
+  <!-- OPERATOR ADD/EDIT MODAL -->
+  <div id="opModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center">
+    <div style="background:var(--surface);border:1px solid var(--b2);border-radius:12px;padding:28px;width:380px;display:flex;flex-direction:column;gap:16px">
+      <div style="font-size:14px;font-weight:700;letter-spacing:.06em" id="opModalTitle">ADD OPERATOR</div>
+      <input type="hidden" id="opModalId">
+      <div>
+        <div style="font-size:10px;color:var(--t3);letter-spacing:.1em;margin-bottom:6px">NAME</div>
+        <input id="opModalName" type="text" placeholder="Full name" style="width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--b2);border-radius:6px;padding:9px 12px;font-size:12px;font-family:inherit">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--t3);letter-spacing:.1em;margin-bottom:6px">ROLE</div>
+        <select id="opModalRole" style="width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--b2);border-radius:6px;padding:9px 12px;font-size:12px;font-family:inherit">
+          <option value="assembly">Assembly</option>
+          <option value="qc_inline">QC Inline</option>
+          <option value="qc_audit">QC Audit</option>
+          <option value="repair">Repair</option>
+          <option value="packing">Packing</option>
+          <option value="rtd">RTD</option>
+          <option value="store">Store</option>
+          <option value="supervisor">Supervisor</option>
+          <option value="line_manager">Line Manager</option>
+          <option value="production_manager">Production Manager</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--t3);letter-spacing:.1em;margin-bottom:6px">DEFAULT LINE</div>
+        <select id="opModalLine" style="width:100%;background:var(--surface2);color:var(--text);border:1px solid var(--b2);border-radius:6px;padding:9px 12px;font-size:12px;font-family:inherit">
+          <option value="">No default</option>
+          <option value="L1">L1</option>
+          <option value="L2">L2</option>
+          <option value="L3">L3</option>
+        </select>
+      </div>
+      <div id="opModalErr" style="font-size:11px;color:var(--red);min-height:16px"></div>
+      <div style="display:flex;gap:8px">
+        <button onclick="closeOpModal()" style="flex:1;padding:10px;background:var(--surface2);color:var(--t2);border:1px solid var(--b2);border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px">Cancel</button>
+        <button onclick="submitOpModal()" style="flex:2;padding:10px;background:var(--yellow);color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-family:inherit;font-size:12px">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPERATOR QR PRINT WINDOW TEMPLATE -->
+  <div id="opQrPrintArea" style="display:none"></div>
+
+</div>
 
 <!-- RETURNS ACTION MODAL -->
 <div class="modal-overlay" id="returnsActionModal">
