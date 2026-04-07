@@ -584,6 +584,12 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
       </div>
     </div>
     <div>
+      <div class="sec-label">Plan vs Actual — Today</div>
+      <div id="execPvaTable">
+        <div class="loading"><div class="spinner"></div> Loading...</div>
+      </div>
+    </div>
+    <div>
       <div class="sec-label">Hourly Output — Today</div>
       <div class="chart-wrap">
         <div class="chart-title">QC Pass units per hour by line</div>
@@ -600,12 +606,6 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div>
       <div class="sec-label">Production Runs</div>
       <div class="table-wrap" id="execRunsTable">
-        <div class="loading"><div class="spinner"></div> Loading...</div>
-      </div>
-    </div>
-    <div>
-      <div class="sec-label">Plan vs Actual — Today</div>
-      <div class="table-wrap" id="execPvaTable">
         <div class="loading"><div class="spinner"></div> Loading...</div>
       </div>
     </div>
@@ -1253,7 +1253,7 @@ async function loadTab(tab) {
   document.getElementById('refreshDot').className = 'refresh-indicator stale';
   try {
     const from = getDateFrom(), to = getDateTo();
-    if (tab === 'exec')        await loadExec(from);
+    if (tab === 'exec')        await loadExec(to);
     if (tab === 'lines')       await loadLines();
     if (tab === 'qc')          await loadQC(todayStr(), todayStr());
     if (tab === 'upc')         await loadUpcGen();
@@ -1698,32 +1698,27 @@ function renderHourlyChart(rows) {
   });
   const lineOrder  = ['L1','L2','L3'];
   const lineColors = { L1:'var(--yellow)', L2:'var(--blue)', L3:'var(--green)' };
-  // maxVal is the highest individual line count across all hours (for bar height scaling)
-  const maxVal = Math.max(
-    ...Object.values(hours).flatMap(h => lineOrder.map(l => h[l] || 0)),
-    1
-  );
+  const maxVal     = Math.max(...Object.values(hours).flatMap(h => lineOrder.map(l => h[l]||0)), 1);
+  const BAR_H      = 72; // px — max bar height
   const shiftHours = Array.from({length:10}, (_, i) => i+9);
 
   el.innerHTML = shiftHours.map(h => {
     const data = hours[h] || {};
     const bars = lineOrder.map(l => {
-      const count  = data[l] || 0;
-      const hPct   = Math.round((count / maxVal) * 100);
+      const count = data[l] || 0;
+      const bh    = count > 0 ? Math.max(Math.round((count / maxVal) * BAR_H), 2) : 0;
       return `
-        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0">
-          <div style="font-size:8px;color:${lineColors[l]};font-weight:700;min-height:11px;text-align:center;line-height:1">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0;height:${BAR_H + 14}px">
+          <div style="font-size:8px;color:${lineColors[l]};font-weight:700;line-height:1;margin-bottom:2px;min-height:10px;text-align:center">
             ${count > 0 ? count : ''}
           </div>
-          <div style="flex:1;width:85%;display:flex;align-items:flex-end">
-            <div style="width:100%;height:${hPct}%;background:${lineColors[l]};border-radius:2px 2px 0 0;opacity:.85;min-height:${count>0?'2px':'0'};transition:height .4s ease"
-                 title="${l}: ${count}"></div>
-          </div>
+          <div style="width:75%;height:${bh}px;background:${lineColors[l]};border-radius:2px 2px 0 0;opacity:.85"
+               title="${l}: ${count}"></div>
         </div>`;
     }).join('');
     return `
-      <div class="bar-col" style="gap:0">
-        <div class="bar-fill-wrap" style="gap:2px">${bars}</div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
+        <div style="display:flex;align-items:flex-end;gap:2px;width:100%">${bars}</div>
         <div class="bar-label">${h}</div>
       </div>`;
   }).join('');
