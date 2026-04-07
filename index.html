@@ -550,7 +550,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
   </div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="exec" onclick="switchTab('exec')">Executive</div>
+    <div class="tab active" data-tab="exec" onclick="switchTab('exec')">Dashboard</div>
     <div class="tab" data-tab="lines" onclick="switchTab('lines')">Lines</div>
     <div class="tab" data-tab="qc" onclick="switchTab('qc')">QC</div>
 
@@ -1603,35 +1603,38 @@ async function printOperatorQr(id) {
 
 // ── EXECUTIVE VIEW ───────────────────────────────────────────
 async function loadExec(date) {
-  const [data, pvaData] = await Promise.all([
+  const [data, pvaData, summaryRes] = await Promise.all([
     api('getProductionDashboard', { date }),
     api('getPlanVsActual', { from: date, to: date }),
+    fetch(API + '?' + new URLSearchParams({ action: 'getScanSummary', date }).toString(),
+      { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.json()).catch(() => ({ ok: false })),
   ]);
   if (!data.ok) return;
   const s = data.data.summary;
   const runs = data.data.open_runs || [];
   const hourly = data.data.hourly_chart || [];
-  renderExecCards(s);
+  const scanSummary = summaryRes.ok ? summaryRes.data : null;
+  renderExecCards(s, scanSummary);
   renderHourlyChart(hourly);
   renderExecRuns(runs, date);
-  const pvaEl = document.getElementById('execPvaTable');
-  if (pvaEl) {
-    if (pvaData.ok && (pvaData.data || []).length) {
-      pvaEl.innerHTML = renderPVAHtml(pvaData.data);
-    } else {
-      pvaEl.innerHTML = '<div class="empty"><span class="empty-icon">📋</span>No production runs today</div>';
-    }
-  }
+  renderExecPva(pvaData.ok ? pvaData.data || [] : []);
 }
 
-function renderExecCards(s) {
+function renderExecCards(s, scan) {
   const passRate = s.today_pass_rate != null ? s.today_pass_rate + '%' : '—';
   const prClass  = s.today_pass_rate >= 95 ? 'green' : s.today_pass_rate >= 85 ? 'yellow' : s.today_pass_rate != null ? 'red' : '';
+  const qcCar    = scan?.QC_PASS_car    != null ? `Car ${fmt(scan.QC_PASS_car)} · Remote ${fmt(scan.QC_PASS_remote)}` : `${fmt(s.today_inw)} inwarded`;
+  const inwSplit = scan?.INW_car        != null ? `Car ${fmt(scan.INW_car)} · Remote ${fmt(scan.INW_remote)}` : '';
   document.getElementById('execCards').innerHTML = `
     <div class="card hi">
       <div class="card-label">QC Pass — Today</div>
       <div class="card-val yellow">${fmt(s.today_qc_pass)}</div>
-      <div class="card-sub">${fmt(s.today_inw)} inwarded</div>
+      <div class="card-sub">${qcCar}</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Inwarded — Today</div>
+      <div class="card-val">${fmt(s.today_inw)}</div>
+      <div class="card-sub">${inwSplit}</div>
     </div>
     <div class="card ${s.today_qc_fail > 0 ? 'bad' : ''}">
       <div class="card-label">QC Fail — Today</div>
@@ -1690,36 +1693,39 @@ function renderHourlyChart(rows) {
   }
   const hours = {};
   rows.forEach(r => {
-    const h = r.hour;
-    if (!hours[h]) hours[h] = {};
-    hours[h][r.line] = (hours[h][r.line] || 0) + r.unit_count;
+    if (!hours[r.hour]) hours[r.hour] = {};
+    hours[r.hour][r.line] = (hours[r.hour][r.line] || 0) + r.unit_count;
   });
-  const maxVal = Math.max(...Object.values(hours).map(h => Object.values(h).reduce((a,b) => a+b, 0)), 1);
-  const lineColors = { L1: 'var(--yellow)', L2: 'var(--blue)', L3: 'var(--green)' };
-  const lineOrder  = ['L1', 'L2', 'L3'];
-
+  const lineOrder  = ['L1','L2','L3'];
+  const lineColors = { L1:'var(--yellow)', L2:'var(--blue)', L3:'var(--green)' };
+  // maxVal is the highest individual line count across all hours (for bar height scaling)
+  const maxVal = Math.max(
+    ...Object.values(hours).flatMap(h => lineOrder.map(l => h[l] || 0)),
+    1
+  );
   const shiftHours = Array.from({length:10}, (_, i) => i+9);
+
   el.innerHTML = shiftHours.map(h => {
-    const data  = hours[h] || {};
-    const total = lineOrder.reduce((a, l) => a + (data[l] || 0), 0);
-    const heightPct = Math.round((total / maxVal) * 100);
-    const segments = lineOrder
-      .filter(l => data[l] > 0)
-      .map(l => `<div style="flex:${data[l]};background:${lineColors[l]};border-radius:1px" title="${l}: ${data[l]}"></div>`)
-      .join('');
-    return `
-      <div class="bar-col">
-        <div style="font-size:9px;color:var(--t2);font-weight:600;min-height:14px;text-align:center;line-height:1">
-          ${total > 0 ? total : ''}
-        </div>
-        <div class="bar-fill-wrap">
-          <div style="height:${heightPct}%;width:100%;display:flex;flex-direction:column-reverse;border-radius:2px 2px 0 0;overflow:hidden;min-height:${total>0?'2px':'0'}">
-            ${segments}
+    const data = hours[h] || {};
+    const bars = lineOrder.map(l => {
+      const count  = data[l] || 0;
+      const hPct   = Math.round((count / maxVal) * 100);
+      return `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0">
+          <div style="font-size:8px;color:${lineColors[l]};font-weight:700;min-height:11px;text-align:center;line-height:1">
+            ${count > 0 ? count : ''}
           </div>
-        </div>
+          <div style="flex:1;width:85%;display:flex;align-items:flex-end">
+            <div style="width:100%;height:${hPct}%;background:${lineColors[l]};border-radius:2px 2px 0 0;opacity:.85;min-height:${count>0?'2px':'0'};transition:height .4s ease"
+                 title="${l}: ${count}"></div>
+          </div>
+        </div>`;
+    }).join('');
+    return `
+      <div class="bar-col" style="gap:0">
+        <div class="bar-fill-wrap" style="gap:2px">${bars}</div>
         <div class="bar-label">${h}</div>
-      </div>
-    `;
+      </div>`;
   }).join('');
 }
 
@@ -2055,48 +2061,51 @@ async function loadRuns(from, to) {
   renderPVA(data.data || []);
 }
 
-function renderPVAHtml(rows) {
-  if (!rows.length) return '<div class="empty"><span class="empty-icon">📋</span>No production runs in selected period</div>';
-  return `
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th><th>Run</th><th>Product</th><th>Line</th>
-          <th>Target</th><th>QC Pass</th><th>RTR</th><th>RTE</th>
-          <th>Dispatched</th><th>Done%</th><th>Gap</th><th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows.map(r => {
-          const pct = r.completion_pct || 0;
-          const pctColor = pct >= 90 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : pct > 0 ? 'var(--orange)' : 'var(--t3)';
-          return `
-            <tr>
-              <td class="td-mono" style="font-size:10px">${r.run_date}</td>
-              <td class="td-mono" style="color:var(--yellow)">${r.run_no}</td>
-              <td style="color:var(--text)">${r.product}</td>
-              <td>${r.line_no || '—'}</td>
-              <td class="td-mono">${fmt(r.target_qty)}</td>
-              <td class="td-mono" style="color:var(--green)">${fmt(r.actual_qc_pass)}</td>
-              <td class="td-mono" style="color:#a78bfa">${fmt(r.actual_rtr)}</td>
-              <td class="td-mono" style="color:#38bdf8">${fmt(r.actual_rte)}</td>
-              <td class="td-mono" style="color:var(--text)">${fmt(r.total_dispatched)}</td>
-              <td class="td-mono" style="color:${pctColor};font-weight:700">${pct}%</td>
-              <td class="td-mono" style="color:${r.gap>0?'var(--red)':'var(--green)'}">${r.gap > 0 ? '-'+fmt(r.gap) : '✓'}</td>
-              <td>${statusBadge(r.run_status)}</td>
-            </tr>
-          `;
-        }).join('')}
-      </tbody>
-    </table>
-  `;
+function renderExecPva(rows) {
+  const el = document.getElementById('execPvaTable');
+  if (!el) return;
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty"><span class="empty-icon">📋</span>No production runs today</div>';
+    return;
+  }
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">
+    ${rows.map(r => {
+      const pct     = r.completion_pct || 0;
+      const pctCol  = pct >= 90 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : pct > 0 ? 'var(--orange)' : 'var(--red)';
+      const barFill = Math.min(pct, 100);
+      const gap     = r.gap > 0 ? `<span style="color:var(--red);font-size:10px">-${fmt(r.gap)} short</span>` : `<span style="color:var(--green);font-size:10px">✓ On track</span>`;
+      return `
+        <div style="background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:14px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div>
+              <div style="font-family:var(--head);font-weight:700;font-size:13px;color:var(--yellow)">${r.run_no}</div>
+              <div style="font-size:12px;color:var(--text);margin-top:2px">${r.product}</div>
+              <div style="font-size:10px;color:var(--t3);margin-top:1px">${r.line_no || '—'}</div>
+            </div>
+            <div style="text-align:right">
+              ${statusBadge(r.run_status)}
+              <div style="font-size:18px;font-weight:700;color:${pctCol};font-family:var(--head);margin-top:4px">${pct}%</div>
+            </div>
+          </div>
+          <div style="background:var(--b1);border-radius:3px;height:5px;margin-bottom:8px;overflow:hidden">
+            <div style="height:100%;width:${barFill}%;background:${pctCol};border-radius:3px;transition:width .5s"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3)">
+            <span>Target <span style="color:var(--text);font-weight:600">${fmt(r.target_qty)}</span></span>
+            <span>QC Pass <span style="color:var(--green);font-weight:600">${fmt(r.actual_qc_pass)}</span></span>
+            <span>RTR <span style="color:#a78bfa;font-weight:600">${fmt(r.actual_rtr)}</span></span>
+            <span>RTE <span style="color:#38bdf8;font-weight:600">${fmt(r.actual_rte)}</span></span>
+          </div>
+          <div style="margin-top:6px">${gap}</div>
+        </div>
+      `;
+    }).join('')}
+  </div>`;
 }
 
 async function loadRuns(from, to) {
   const data = await api('getPlanVsActual', { from, to });
-  if (!data.ok) return;
-  const el = document.getElementById('execPvaTable');
-  if (el) el.innerHTML = renderPVAHtml(data.data || []);
+  if (data.ok) renderExecPva(data.data || []);
 }
 
 // ── HELPERS ──────────────────────────────────────────────────
