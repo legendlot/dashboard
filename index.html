@@ -1838,14 +1838,13 @@ function renderLineCards(lines, crMap) {
         </div>
         <div class="lc-stats">
           <div class="lc-stat">
-            <div class="lc-stat-val" style="color:var(--text)">${fmt(l.inw_count)}</div>
+            <div class="lc-stat-val" style="color:var(--text)">${fmt(inwCar != null ? inwCar : l.inw_count)}</div>
             <div class="lc-stat-label">INW</div>
-            ${inwSub}
+            ${inwCar != null ? `<div style="font-size:8px;color:var(--t3);margin-top:2px">${fmt(inwRem||0)} remotes</div>` : ''}
           </div>
           <div class="lc-stat">
-            <div class="lc-stat-val" style="color:var(--green)">${fmt(l.qc_pass_count)}</div>
+            <div class="lc-stat-val" style="color:var(--green)">${fmt(passCar != null ? passCar : l.qc_pass_count)}</div>
             <div class="lc-stat-label">QC Pass</div>
-            ${passSub}
           </div>
           <div class="lc-stat">
             <div class="lc-stat-val" style="color:var(--red)">${fmt(l.qc_fail_count)}</div>
@@ -1855,13 +1854,10 @@ function renderLineCards(lines, crMap) {
             <div class="lc-stat-val" style="color:var(--yellow)">${fmt(l.pkg_count)}</div>
             <div class="lc-stat-label">PKG</div>
           </div>
-          <div class="lc-stat">
-            <div class="lc-stat-val" style="color:#a78bfa">${fmt(l.rtr_count)}</div>
-            <div class="lc-stat-label">RTR</div>
-          </div>
-          <div class="lc-stat">
-            <div class="lc-stat-val" style="color:#38bdf8">${fmt(l.rte_count)}</div>
-            <div class="lc-stat-label">RTE</div>
+          <div class="lc-stat" style="grid-column:span 2">
+            <div class="lc-stat-val" style="color:var(--green)">${fmt((l.rtr_count||0)+(l.rte_count||0))}</div>
+            <div class="lc-stat-label">DISPATCHED</div>
+            <div style="font-size:8px;color:var(--t3);margin-top:2px">${fmt(l.rtr_count)} RTR · ${fmt(l.rte_count)} RTE</div>
           </div>
         </div>
         <div class="lc-bottom">
@@ -1883,21 +1879,27 @@ function renderOperatorTable(ops) {
     el.innerHTML = '<div class="empty">No operator data</div>';
     return;
   }
+  // Sort by operator name ascending
+  const sorted = [...ops].sort((a, b) => (a.operator_name || '').localeCompare(b.operator_name || ''));
   el.innerHTML = `
     <table>
       <thead>
         <tr>
-          <th>Operator</th><th>Line</th><th>INW</th>
-          <th>QC Pass</th><th>QC Fail</th><th>Pass Rate</th>
+          <th>Operator</th><th>Line</th>
+          <th>INW Cars</th><th>INW Remotes</th>
+          <th>QC Pass Cars</th><th>QC Pass Remotes</th>
+          <th>QC Fail</th><th>Pass Rate</th>
         </tr>
       </thead>
       <tbody>
-        ${ops.map(o => `
+        ${sorted.map(o => `
           <tr>
             <td style="color:var(--text)">${o.operator_name || '—'}</td>
             <td style="color:var(--yellow)">${o.line || '—'}</td>
-            <td class="td-mono">${fmt(o.inw_count)}</td>
-            <td class="td-mono" style="color:var(--green)">${fmt(o.qc_pass_count)}</td>
+            <td class="td-mono">${fmt(o.inw_car_count)}</td>
+            <td class="td-mono" style="color:var(--t3)">${fmt(o.inw_remote_count)}</td>
+            <td class="td-mono" style="color:var(--green)">${fmt(o.qc_pass_car_count)}</td>
+            <td class="td-mono" style="color:var(--t3)">${fmt(o.qc_pass_remote_count)}</td>
             <td class="td-mono" style="color:var(--red)">${fmt(o.qc_fail_count)}</td>
             <td class="td-mono" style="color:${(o.pass_rate_pct||0)>=95?'var(--green)':(o.pass_rate_pct||0)>=85?'var(--yellow)':'var(--red)'}">${o.pass_rate_pct != null ? o.pass_rate_pct + '%' : '—'}</td>
           </tr>
