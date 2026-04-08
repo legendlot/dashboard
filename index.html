@@ -804,6 +804,13 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
   <!-- ALERTS TAB -->
   <div id="tab-alerts" class="content" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:12px">
+      <span style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--t3)">From</span>
+      <input type="date" class="date-input" id="alertsDateFrom" onchange="loadAlerts(getAlertsDateFrom(), getAlertsDateTo())">
+      <span style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--t3)">To</span>
+      <input type="date" class="date-input" id="alertsDateTo" onchange="loadAlerts(getAlertsDateFrom(), getAlertsDateTo())">
+      <button class="date-btn" onclick="setAlertsToday()">Today</button>
+    </div>
     <div class="cards" id="alertsCards" style="margin-bottom:4px">
       <div class="loading"><div class="spinner"></div></div>
     </div>
@@ -814,13 +821,13 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         <button class="scan-filter-btn" data-f="acked" onclick="setAlertsFilter('acked')">Acknowledged</button>
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
-        <select id="alertsLineFilter" class="date-input" onchange="loadAlerts(getDateFrom(),getDateTo())" style="font-size:11px">
+        <select id="alertsLineFilter" class="date-input" onchange="loadAlerts(getAlertsDateFrom(), getAlertsDateTo())" style="font-size:11px">
           <option value="">All Lines</option>
           <option value="L1">L1</option>
           <option value="L2">L2</option>
           <option value="L3">L3</option>
         </select>
-        <select id="alertsStationFilter" class="date-input" onchange="loadAlerts(getDateFrom(),getDateTo())" style="font-size:11px">
+        <select id="alertsStationFilter" class="date-input" onchange="loadAlerts(getAlertsDateFrom(), getAlertsDateTo())" style="font-size:11px">
           <option value="">All Stations</option>
           <option value="INW">INW</option>
           <option value="QC_PASS">QC Pass</option>
@@ -1297,7 +1304,7 @@ async function loadTab(tab) {
     if (tab === 'upc')         await loadUpcGen();
     if (tab === 'scans')       await loadScans();
     if (tab === 'corrections') await loadCorrections();
-    if (tab === 'alerts')      await loadAlerts(todayStr(), todayStr());
+    if (tab === 'alerts')      await loadAlerts(getAlertsDateFrom(), getAlertsDateTo());
     if (tab === 'returns')     await loadReturns();
     if (tab === 'reporting')   await loadReporting();
     if (tab === 'operators')   await loadOperators();
@@ -3183,6 +3190,15 @@ document.getElementById('ackModal').addEventListener('click', function(e) {
 let alertsFilter  = '';
 let pendingAckId  = null;
 window._alertRows = [];
+
+function getAlertsDateFrom() { return document.getElementById('alertsDateFrom')?.value || todayStr(); }
+function getAlertsDateTo()   { return document.getElementById('alertsDateTo')?.value   || todayStr(); }
+function setAlertsToday() {
+  const t = todayStr();
+  document.getElementById('alertsDateFrom').value = t;
+  document.getElementById('alertsDateTo').value   = t;
+  loadAlerts(t, t);
+}
 
 function setAlertsFilter(f) {
   alertsFilter = f;
