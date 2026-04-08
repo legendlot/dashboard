@@ -1802,6 +1802,7 @@ async function loadLines() {
 
 function renderLineCards(lines, crMap) {
   crMap = crMap || {};
+  lines = (lines || []).filter(l => l.line !== 'SHARED');
   const el = document.getElementById('lineCards');
   if (!lines.length) {
     el.innerHTML = '<div class="empty"><span class="empty-icon">🏭</span>No line data for selected date</div>';
