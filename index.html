@@ -592,7 +592,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div>
       <div class="sec-label">Hourly Output — Today</div>
       <div class="chart-wrap">
-        <div class="chart-title">Hourly QC Pass — Achievement vs Target</div>
+        <div class="chart-title">Hourly Dispatch — Achievement vs Target</div>
         <div class="bar-chart" id="hourlyChart">
           <div class="loading"><div class="spinner"></div></div>
         </div>
@@ -1607,7 +1607,7 @@ async function loadExec(date) {
   if (!data.ok) return;
   const s = data.data.summary;
   const runs = data.data.open_runs || [];
-  const hourly = data.data.hourly_chart || [];
+  const hourly = data.data.hourly_dispatch || data.data.hourly_chart || [];
   const scanSummary = summaryRes.ok ? summaryRes.data : null;
   renderExecCards(s, scanSummary);
   renderHourlyChart(hourly, pvaData.ok ? pvaData.data || [] : []);
@@ -1682,19 +1682,19 @@ function renderExecCards(s, scan) {
 
 function renderHourlyChart(rows, pvaRows) {
   const el = document.getElementById('hourlyChart');
-  if (!rows.length) {
-    el.innerHTML = '<div class="empty" style="width:100%;padding:24px 0;text-align:center"><span class="empty-icon">📊</span>No scan data for selected date</div>';
+  if (!rows.length && !(pvaRows||[]).some(r => r.target_qty > 0)) {
+    el.innerHTML = '<div class="empty" style="width:100%;padding:24px 0;text-align:center"><span class="empty-icon">📦</span>No dispatch data for selected date</div>';
     return;
   }
 
-  // Build hourly actual per line
+  // Build dispatched per line per hour
   const byLine = {};
   rows.forEach(r => {
     if (!byLine[r.line]) byLine[r.line] = {};
-    byLine[r.line][r.hour] = (byLine[r.line][r.hour] || 0) + r.unit_count;
+    byLine[r.line][r.hour] = (byLine[r.line][r.hour] || 0) + (r.dispatched || r.unit_count || 0);
   });
 
-  // Build daily target per line from PVA
+  // Daily target per line from PVA
   const targetByLine = {};
   (pvaRows || []).forEach(r => {
     if (r.line_no) targetByLine[r.line_no] = Number(r.target_qty) || 0;
@@ -1702,13 +1702,13 @@ function renderHourlyChart(rows, pvaRows) {
 
   const lineOrder  = ['L1','L2','L3'];
   const lineColors = { L1:'var(--yellow)', L2:'var(--blue)', L3:'var(--green)' };
-  const SHIFT_HRS  = 9;   // 9am–6pm = 9 productive hours
-  const BAR_H      = 72;  // max bar height px
+  const lineRGB    = { L1:'242,205,26',    L2:'33,60,226',   L3:'34,197,94'   };
+  const SHIFT_HRS  = 9;
+  const CELL_H     = 64;
   const shiftHours = Array.from({length:10}, (_, i) => i + 9);
 
-  // Current IST hour (safe for India-deployed devices)
-  const nowIST     = new Date(new Date().toLocaleString('en-US', {timeZone:'Asia/Kolkata'}));
-  const currentHr  = nowIST.getHours();
+  const nowIST    = new Date(new Date().toLocaleString('en-US', {timeZone:'Asia/Kolkata'}));
+  const currentHr = nowIST.getHours();
 
   const activeLines = lineOrder.filter(l => byLine[l] || targetByLine[l]);
   if (!activeLines.length) {
@@ -1720,107 +1720,93 @@ function renderHourlyChart(rows, pvaRows) {
     const data      = byLine[line] || {};
     const dayTarget = targetByLine[line] || 0;
     const hrTarget  = dayTarget > 0 ? dayTarget / SHIFT_HRS : 0;
+    const rgb       = lineRGB[line];
 
-    // Cumulative stats
-    const totalActual   = Object.values(data).reduce((s, v) => s + v, 0);
-    const hrsElapsed    = Math.max(0, Math.min(currentHr - 9, SHIFT_HRS)); // completed hours since 9am
-    const paceTarget    = Math.round(hrTarget * hrsElapsed);
-    const gap           = paceTarget - totalActual; // positive = behind
+    const totalActual = Object.values(data).reduce((s, v) => s + v, 0);
+    const hrsElapsed  = Math.max(0, Math.min(currentHr - 9, SHIFT_HRS));
+    const paceTarget  = Math.round(hrTarget * hrsElapsed);
+    const gap         = paceTarget - totalActual;
 
-    const maxVal = Math.max(
-      ...shiftHours.map(h => data[h] || 0),
-      hrTarget > 0 ? hrTarget * 1.3 : 0,
-      1
-    );
-    const targetLineY = hrTarget > 0 ? Math.round((hrTarget / maxVal) * BAR_H) : 0;
+    const paceColor = gap > 5 ? 'var(--red)' : gap < -5 ? 'var(--green)' : 'var(--t2)';
+    const paceLabel = gap > 5 ? `▼ ${gap} behind` : gap < -5 ? `▲ ${Math.abs(gap)} ahead` : 'on pace';
 
-    const bars = shiftHours.map(h => {
-      const count    = data[h] || 0;
-      const isFuture = h > currentHr;
-      const isCurrent= h === currentHr;
-      const bh       = count > 0 ? Math.max(Math.round((count / maxVal) * BAR_H), 2) : 0;
+    const cells = shiftHours.map(h => {
+      const count     = data[h] || 0;
+      const isFuture  = h > currentHr;
+      const isCurrent = h === currentHr;
 
-      // Colour logic — no penalty for current (partial) hour
-      let barColor;
-      if (isFuture)        barColor = 'var(--b2)';
-      else if (!hrTarget)  barColor = lineColors[line];
-      else if (isCurrent)  barColor = lineColors[line]; // partial hour, no red
-      else if (count >= hrTarget)        barColor = 'var(--green)';
-      else if (count >= hrTarget * 0.7)  barColor = 'var(--orange)';
-      else                               barColor = 'var(--red)';
+      let fillPct   = 0;
+      let fillColor = 'transparent';
+      let cellBorder = `rgba(${rgb},.15)`;
 
-      const labelColor = isFuture ? 'var(--t3)' : barColor;
+      if (!isFuture) {
+        cellBorder = `rgba(${rgb},.3)`;
+        if (hrTarget > 0) {
+          fillPct = Math.min((count / hrTarget) * 100, 100);
+          if (isCurrent)              fillColor = `rgba(${rgb},.45)`;
+          else if (count >= hrTarget) fillColor = `rgba(34,197,94,.8)`;
+          else if (count >= hrTarget * 0.7) fillColor = `rgba(245,158,11,.8)`;
+          else if (count > 0)         fillColor = `rgba(222,42,42,.8)`;
+        } else if (count > 0) {
+          fillPct   = 55;
+          fillColor = `rgba(${rgb},.5)`;
+        }
+      }
+
+      const numColor  = fillPct > 45 ? '#fff' : (isFuture ? 'var(--t3)' : lineColors[line]);
+      const isOver    = !isFuture && !isCurrent && hrTarget > 0 && count >= hrTarget;
+      const fontSize  = count > 99 ? '9px' : '11px';
 
       return `
-        <div style="flex:1;display:flex;flex-direction:column;align-items:center;
-                    justify-content:flex-end;min-width:0">
-          <div style="font-size:7px;font-weight:700;color:${labelColor};line-height:1;
-                      margin-bottom:2px;min-height:9px;text-align:center">
-            ${!isFuture && count > 0 ? count : ''}
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px">
+          <div style="width:100%;height:${CELL_H}px;border:1px solid ${cellBorder};
+                      border-radius:3px;background:var(--s3);position:relative;overflow:hidden;">
+            <div style="position:absolute;bottom:0;left:0;right:0;
+                        height:${fillPct}%;background:${fillColor};"></div>
+            <div style="position:absolute;inset:0;display:flex;align-items:center;
+                        justify-content:center;font-size:${fontSize};font-weight:700;
+                        color:${numColor};font-family:var(--mono);z-index:1;">
+              ${!isFuture && count > 0 ? count : ''}
+            </div>
+            ${isOver ? `<div style="position:absolute;top:4px;right:4px;width:5px;height:5px;
+                                    border-radius:50%;background:var(--green);z-index:2;"></div>` : ''}
           </div>
-          <div style="width:72%;height:${bh}px;background:${barColor};
-                      border-radius:2px 2px 0 0;${isFuture?'opacity:.15;':'opacity:.9;'}"
-               title="${line} ${h}:00 — ${count} units"></div>
-          <div style="font-size:7px;color:var(--t3);margin-top:3px;line-height:1">${h}</div>
+          <div style="font-size:7px;color:var(--t3)">${h}</div>
         </div>`;
     }).join('');
 
-    const paceColor  = gap > 5  ? 'var(--red)'    :
-                       gap < -5 ? 'var(--green)'  : 'var(--t2)';
-    const paceLabel  = gap > 5  ? `▼ ${gap} behind`   :
-                       gap < -5 ? `▲ ${Math.abs(gap)} ahead` : 'on pace';
-    const isLastLine = li === activeLines.length - 1;
+    const isLast = li === activeLines.length - 1;
 
     return `
-      <div style="padding:12px 0;${isLastLine ? '' : 'border-bottom:1px solid var(--b1);margin-bottom:8px'}">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="padding:14px 0;${isLast ? '' : 'border-bottom:1px solid var(--b1);margin-bottom:6px'}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div style="display:flex;align-items:center;gap:8px">
             <div style="width:7px;height:7px;border-radius:50%;background:${lineColors[line]};flex-shrink:0"></div>
-            <span style="font-size:10px;font-weight:700;color:var(--text);letter-spacing:.05em">${line}</span>
+            <span style="font-size:10px;font-weight:700;color:var(--text)">${line}</span>
             ${hrTarget > 0
-              ? `<span style="font-size:9px;color:var(--t3)">· ${Math.round(hrTarget)}/hr target · ${fmt(dayTarget)} today</span>`
+              ? `<span style="font-size:9px;color:var(--t3)">· ${Math.round(hrTarget)}/hr · ${fmt(dayTarget)} today</span>`
               : `<span style="font-size:9px;color:var(--t3)">· no target set</span>`}
           </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <span style="font-size:10px;color:var(--t2)">${fmt(totalActual)} done</span>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:10px;color:var(--t2)">${fmt(totalActual)} dispatched</span>
             ${hrTarget > 0 && hrsElapsed > 0
               ? `<span style="font-size:9px;font-weight:700;color:${paceColor}">${paceLabel}</span>`
               : ''}
           </div>
         </div>
-        <div style="position:relative">
-          ${targetLineY > 0 ? `
-            <div title="Hourly target: ${Math.round(hrTarget)}" style="
-              position:absolute;left:0;right:0;
-              bottom:${14 + targetLineY}px;
-              height:1px;
-              background:repeating-linear-gradient(
-                to right,
-                ${lineColors[line]} 0,${lineColors[line]} 5px,
-                transparent 5px,transparent 10px
-              );
-              opacity:.45;pointer-events:none">
-            </div>` : ''}
-          <div style="display:flex;align-items:flex-end;gap:3px;height:${BAR_H + 14}px">
-            ${bars}
+        <div style="display:flex;gap:4px">${cells}</div>
+        <div style="display:flex;gap:14px;margin-top:8px">
+          <div style="font-size:8px;color:var(--t3);display:flex;align-items:center;gap:5px">
+            <div style="width:8px;height:8px;border-radius:1px;background:rgba(34,197,94,.8)"></div>met target
           </div>
-        </div>
-        <div style="display:flex;gap:12px;margin-top:8px">
-          <div style="display:flex;align-items:center;gap:5px;font-size:8px;color:var(--t3)">
-            <div style="width:10px;height:1px;background:repeating-linear-gradient(to right,${lineColors[line]} 0,${lineColors[line]} 3px,transparent 3px,transparent 6px)"></div>
-            target ${hrTarget > 0 ? Math.round(hrTarget) + '/hr' : '—'}
+          <div style="font-size:8px;color:var(--t3);display:flex;align-items:center;gap:5px">
+            <div style="width:8px;height:8px;border-radius:1px;background:rgba(245,158,11,.8)"></div>close
           </div>
-          <div style="display:flex;align-items:center;gap:5px;font-size:8px;color:var(--t3)">
-            <div style="width:8px;height:8px;border-radius:1px;background:var(--green);opacity:.9"></div>
-            met
+          <div style="font-size:8px;color:var(--t3);display:flex;align-items:center;gap:5px">
+            <div style="width:8px;height:8px;border-radius:1px;background:rgba(222,42,42,.8)"></div>missed
           </div>
-          <div style="display:flex;align-items:center;gap:5px;font-size:8px;color:var(--t3)">
-            <div style="width:8px;height:8px;border-radius:1px;background:var(--orange);opacity:.9"></div>
-            close
-          </div>
-          <div style="display:flex;align-items:center;gap:5px;font-size:8px;color:var(--t3)">
-            <div style="width:8px;height:8px;border-radius:1px;background:var(--red);opacity:.9"></div>
-            missed
+          <div style="font-size:8px;color:var(--t3);display:flex;align-items:center;gap:5px">
+            <div style="width:8px;height:8px;border-radius:1px;background:rgba(${lineRGB[activeLines[0]]},.45)"></div>in progress
           </div>
         </div>
       </div>`;
