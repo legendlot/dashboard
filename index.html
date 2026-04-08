@@ -2580,7 +2580,7 @@ function onScanSearch() {
   if (search.length === 0) {
     if (scanUpcMode) {
       scanUpcMode = false;
-      document.getElementById('scanSummaryCards').style.display = '';
+      document.getElementById('scanSummaryCards').style.display = 'grid';
       loadScans();
     }
     return;
