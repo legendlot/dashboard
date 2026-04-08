@@ -1634,7 +1634,7 @@ function renderExecCards(s, scan) {
     <div class="card ${s.today_qc_fail > 0 ? 'bad' : ''}">
       <div class="card-label">QC Fail — Today</div>
       <div class="card-val ${s.today_qc_fail > 0 ? 'red' : ''}">${fmt(s.today_qc_fail)}</div>
-      <div class="card-sub">&nbsp;</div>
+      <div class="card-sub">${s.qc_fail_car != null ? `${fmt(s.qc_fail_car)} cars · ${fmt(s.qc_fail_remote||0)} remotes` : '&nbsp;'}</div>
     </div>
     <div class="card ${s.today_pass_rate >= 95 ? 'ok' : s.today_pass_rate >= 85 ? 'warn' : s.today_pass_rate != null ? 'bad' : ''}">
       <div class="card-label">Pass Rate</div>
@@ -1909,6 +1909,8 @@ function renderLineCards(lines, crMap) {
     const inwRem    = crMap[`${l.line}:INW:remote`];
     const passCar   = crMap[`${l.line}:QC_PASS:car`];
     const passRem   = crMap[`${l.line}:QC_PASS:remote`];
+    const failCar   = crMap[`${l.line}:QC_FAIL:car`];
+    const failRem   = crMap[`${l.line}:QC_FAIL:remote`];
     const inwSub    = inwCar  != null ? `<div style="font-size:8px;color:var(--t3);margin-top:2px">${inwCar}C · ${inwRem||0}R</div>`  : '';
     const passSub   = passCar != null ? `<div style="font-size:8px;color:var(--t3);margin-top:2px">${passCar}C · ${passRem||0}R</div>` : '';
     return `
@@ -1939,6 +1941,7 @@ function renderLineCards(lines, crMap) {
           <div class="lc-stat">
             <div class="lc-stat-val" style="color:var(--red)">${fmt(l.qc_fail_count)}</div>
             <div class="lc-stat-label">QC Fail</div>
+            ${failCar != null ? `<div style="font-size:8px;color:var(--t3);margin-top:2px">${failCar}C · ${failRem||0}R</div>` : ''}
           </div>
           <div class="lc-stat">
             <div class="lc-stat-val" style="color:var(--yellow)">${fmt(l.pkg_count)}</div>
