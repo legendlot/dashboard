@@ -518,6 +518,43 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 }
 .rqc-defects tbody td{padding:8px 12px;border-bottom:1px solid var(--b1);font-size:11px;color:var(--t2)}
 .rqc-defects tbody tr:last-child td{border-bottom:none}
+
+/* ── PER-LINE CYCLE TIME ── */
+.ct-lines-wrap{display:flex;flex-direction:column;gap:0;margin-top:12px;border-top:1px solid var(--b1)}
+.ct-line-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--b1);flex-wrap:wrap}
+.ct-line-row:last-child{border-bottom:none}
+.ct-line-label{font-family:var(--head);font-weight:700;font-size:13px;color:var(--yellow);width:28px;flex-shrink:0}
+.ct-mini-panels{display:flex;gap:8px;flex:1;flex-wrap:wrap}
+.ct-mini{background:var(--s3);border:1px solid var(--b1);border-radius:6px;padding:9px 13px;min-width:100px;flex:1}
+.ct-mini-label{font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--t3);margin-bottom:3px}
+.ct-mini-val{font-family:var(--head);font-weight:700;font-size:17px;line-height:1}
+.ct-mini-sub{font-size:9px;color:var(--t3);margin-top:2px}
+
+/* ── DEFECT BREAKDOWN ── */
+.dbk-wrap{background:var(--s2);border:1px solid var(--b1);border-radius:8px;overflow:hidden}
+.dbk-product-row{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;border-bottom:1px solid var(--b1);transition:background .1s;user-select:none}
+.dbk-product-row:hover{background:var(--s3)}
+.dbk-chevron{font-size:9px;color:var(--t3);transition:transform .2s;width:10px;flex-shrink:0;display:inline-block}
+.dbk-chevron.open{transform:rotate(90deg)}
+.dbk-product-name{font-family:var(--head);font-weight:700;font-size:13px;color:var(--text);flex:1}
+.dbk-product-meta{display:flex;gap:20px;font-size:10px;color:var(--t3)}
+.dbk-product-meta strong{color:var(--text);font-weight:700}
+.dbk-product-detail{padding:4px 16px 16px;border-bottom:1px solid var(--b1);background:var(--s1)}
+.dbk-component-section{margin-top:14px}
+.dbk-component-label{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--t2);margin-bottom:10px;display:flex;align-items:center;gap:8px;font-weight:600}
+.dbk-component-label::after{content:'';flex:1;height:1px;background:var(--b1)}
+.dbk-severity-group{margin-bottom:10px}
+.dbk-severity-badge{display:inline-flex;align-items:center;gap:6px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;padding:2px 8px;border-radius:3px}
+.dbk-severity-badge.critical{background:rgba(222,42,42,.15);color:var(--red);border:1px solid rgba(222,42,42,.3)}
+.dbk-severity-badge.major{background:rgba(245,158,11,.15);color:var(--orange);border:1px solid rgba(245,158,11,.3)}
+.dbk-severity-badge.minor{background:rgba(153,153,153,.1);color:var(--t2);border:1px solid var(--b2)}
+.dbk-defect-row{display:flex;align-items:center;gap:10px;padding:5px 8px;border-radius:4px;transition:background .08s}
+.dbk-defect-row:hover{background:var(--s3)}
+.dbk-defect-code{font-family:var(--mono);font-size:10px;color:var(--yellow);width:48px;flex-shrink:0}
+.dbk-defect-issue{font-size:11px;color:var(--text);flex:1}
+.dbk-defect-count{font-family:var(--head);font-weight:700;font-size:14px;color:var(--red);width:28px;text-align:right;flex-shrink:0}
+.dbk-train{font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:1px 5px;border-radius:3px;background:rgba(222,42,42,.12);color:var(--red);border:1px solid rgba(222,42,42,.25);flex-shrink:0}
+
 </style>
 </head>
 <body>
@@ -639,6 +676,12 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <div>
       <div class="sec-label">Top Defects</div>
       <div class="defect-grid" id="defectGrid">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="sec-label">Defect Breakdown by Product</div>
+      <div id="defectBreakdown">
         <div class="loading"><div class="spinner"></div></div>
       </div>
     </div>
@@ -2006,9 +2049,10 @@ function renderOperatorTable(ops) {
 async function loadQC(from, to) {
   const data = await api('getQCView', { from, to });
   if (!data.ok) return;
-  renderCycleTime(data.data.cycle_time || null);
+  renderCycleTime(data.data.cycle_time || null, data.data.cycle_time_lines || {});
   renderFPY(data.data.fpy || []);
   renderDefects(data.data.heatmap || []);
+  renderDefectBreakdown(data.data.defect_breakdown || []);
   renderRepeatDefects(data.data.repeat_defects || []);
 }
 
@@ -2021,33 +2065,71 @@ function fmtMins(mins) {
   return `${h}h ${rem}m`;
 }
 
-function renderCycleTime(ct) {
+function renderCycleTime(ct, ctByLine) {
   const el = document.getElementById('qcCycleSection');
   if (!el) return;
+  ctByLine = ctByLine || {};
+
   if (!ct || !ct.units_measured) {
-    el.innerHTML = `
-      <div class="cards">
-        <div class="card">
-          <div class="card-label">Avg QC Cycle Time</div>
-          <div class="card-val" style="font-size:20px">—</div>
-          <div class="card-sub">No data for period</div>
-        </div>
-      </div>`;
+    el.innerHTML = `<div class="cards"><div class="card"><div class="card-label">Avg QC Cycle Time</div><div class="card-val" style="font-size:20px">—</div><div class="card-sub">No data for period</div></div></div>`;
     return;
   }
+
   const avgColor = ct.avg_mins_all <= 30 ? 'var(--green)' : ct.avg_mins_all <= 60 ? 'var(--yellow)' : 'var(--red)';
   const outlierHtml = Number(ct.outlier_count) > 0
-    ? '<div class="ct-outlier-strip"><span>⚠</span>' +
-      '<span><strong>' + ct.outlier_count + '</strong> outlier unit' + (Number(ct.outlier_count) > 1 ? 's' : '') + ' excluded from all averages above</span>' +
-      '<span class="ct-detail">— longest was <strong>' + fmtMins(ct.outlier_max_mins) + '</strong> &nbsp;·&nbsp; IQR fence at ' + fmtMins(ct.outlier_threshold_mins) + '</span></div>'
+    ? `<div class="ct-outlier-strip"><span>⚠</span><span><strong>${ct.outlier_count}</strong> outlier unit${Number(ct.outlier_count) > 1 ? 's' : ''} excluded from all averages above</span><span class="ct-detail">— longest was <strong>${fmtMins(ct.outlier_max_mins)}</strong> &nbsp;·&nbsp; IQR fence at ${fmtMins(ct.outlier_threshold_mins)}</span></div>`
     : '';
+
+  const lineLabels = ['L1','L2','L3'];
+  const lineColors = { L1:'var(--yellow)', L2:'var(--blue)', L3:'var(--green)' };
+  const activeLines = lineLabels.filter(l => ctByLine[l] && ctByLine[l].units_measured);
+
+  const perLineHtml = activeLines.length ? `
+    <div class="ct-lines-wrap">
+      ${activeLines.map(line => {
+        const l = ctByLine[line];
+        const ac = l.avg_mins_all <= 30 ? 'var(--green)' : l.avg_mins_all <= 60 ? 'var(--yellow)' : 'var(--red)';
+        return `
+          <div class="ct-line-row">
+            <div class="ct-line-label" style="color:${lineColors[line]}">${line}</div>
+            <div class="ct-mini-panels">
+              <div class="ct-mini">
+                <div class="ct-mini-label">Avg</div>
+                <div class="ct-mini-val" style="color:${ac}">${fmtMins(l.avg_mins_all)}</div>
+                <div class="ct-mini-sub">${fmt(l.units_measured)} units</div>
+              </div>
+              <div class="ct-mini">
+                <div class="ct-mini-label">Pass Avg</div>
+                <div class="ct-mini-val" style="color:var(--green)">${fmtMins(l.avg_mins_pass)}</div>
+              </div>
+              <div class="ct-mini">
+                <div class="ct-mini-label">Fail Avg</div>
+                <div class="ct-mini-val" style="color:var(--red)">${fmtMins(l.avg_mins_fail)}</div>
+              </div>
+              <div class="ct-mini">
+                <div class="ct-mini-label">Median</div>
+                <div class="ct-mini-val">${fmtMins(l.median_mins)}</div>
+              </div>
+              <div class="ct-mini">
+                <div class="ct-mini-label">Fastest</div>
+                <div class="ct-mini-val">${fmtMins(l.fastest_mins)}</div>
+              </div>
+              <div class="ct-mini">
+                <div class="ct-mini-label">Slowest</div>
+                <div class="ct-mini-val">${fmtMins(l.slowest_normal_mins)}</div>
+                <div class="ct-mini-sub">within fence</div>
+              </div>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>` : '';
 
   el.innerHTML = `
     <div class="cards">
       <div class="card hi">
         <div class="card-label">Avg Cycle Time</div>
         <div class="card-val" style="font-size:22px;color:${avgColor}">${fmtMins(ct.avg_mins_all)}</div>
-        <div class="card-sub">Core · ${fmt(ct.units_measured)} units</div>
+        <div class="card-sub">All lines · ${fmt(ct.units_measured)} units</div>
       </div>
       <div class="card">
         <div class="card-label">Median</div>
@@ -2076,6 +2158,7 @@ function renderCycleTime(ct) {
       </div>
     </div>
     ${outlierHtml}
+    ${perLineHtml}
   `;
 }
 
@@ -2105,31 +2188,161 @@ function renderDefects(rows) {
     el.innerHTML = '<div class="empty" style="grid-column:1/-1"><span class="empty-icon">✅</span>No defects logged</div>';
     return;
   }
-  const agg = {};
+
+  // Group: line → functional|visual → defect_code → aggregated entry
+  const byLine = {};
   rows.forEach(r => {
-    if (!agg[r.defect_code]) {
-      agg[r.defect_code] = {
+    const line = r.line || 'Unknown';
+    if (!byLine[line]) byLine[line] = { functional: {}, visual: {} };
+    const grp = (r.category || '').includes('Functional') ? 'functional' : 'visual';
+    if (!byLine[line][grp][r.defect_code]) {
+      byLine[line][grp][r.defect_code] = {
         code: r.defect_code, issue: r.issue, category: r.category,
         severity: r.severity, count: 0, training: false
       };
     }
-    agg[r.defect_code].count += r.defect_count;
-    if (r.training_flag) agg[r.defect_code].training = true;
+    byLine[line][grp][r.defect_code].count += Number(r.defect_count) || 0;
+    if (r.training_flag) byLine[line][grp][r.defect_code].training = true;
   });
-  const sorted = Object.values(agg).sort((a,b) => b.count - a.count).slice(0, 20);
-  el.innerHTML = sorted.map(d => `
-    <div class="defect-card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div class="dc-code">${d.code}${d.training ? '<span class="training-flag">Flag</span>' : ''}</div>
-        <div class="dc-count">${d.count}</div>
+
+  const sevOrder = { Critical: 0, Major: 1, Minor: 2 };
+  function sortedCards(map) {
+    return Object.values(map)
+      .sort((a, b) => (sevOrder[a.severity] ?? 9) - (sevOrder[b.severity] ?? 9) || b.count - a.count)
+      .slice(0, 12);
+  }
+  function cardHtml(d) {
+    const sevColor = d.severity === 'Critical' ? 'var(--red)' : d.severity === 'Major' ? 'var(--orange)' : 'var(--t2)';
+    return `
+      <div class="defect-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div class="dc-code">${d.code}${d.training ? '<span class="training-flag">Flag</span>' : ''}</div>
+          <div class="dc-count">${d.count}</div>
+        </div>
+        <div class="dc-issue">${d.issue || '—'}</div>
+        <div class="dc-meta">
+          <span>${d.category || '—'}</span>
+          <span style="color:${sevColor}">${d.severity || '—'}</span>
+        </div>
+      </div>`;
+  }
+
+  const lines = Object.keys(byLine).sort();
+  el.innerHTML = `<div style="grid-column:1/-1;display:flex;flex-direction:column;gap:20px">` +
+    lines.map(line => {
+      const fCards = sortedCards(byLine[line].functional);
+      const vCards = sortedCards(byLine[line].visual);
+      const fTotal = Object.values(byLine[line].functional).reduce((s, d) => s + d.count, 0);
+      const vTotal = Object.values(byLine[line].visual).reduce((s, d) => s + d.count, 0);
+      return `
+        <div>
+          <div style="font-family:var(--head);font-weight:700;font-size:11px;color:var(--yellow);letter-spacing:.15em;margin-bottom:10px;display:flex;align-items:center;gap:10px;text-transform:uppercase">
+            ${line}
+            <span style="font-family:var(--mono);font-size:9px;color:var(--t3);font-weight:400;text-transform:none">${fTotal + vTotal} total occurrences</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
+            <div>
+              <div style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--t3);margin-bottom:8px;display:flex;align-items:center;gap:8px">
+                Functional <span style="color:var(--red);font-weight:700;font-family:var(--head)">${fTotal}</span>
+              </div>
+              <div class="defect-grid">${fCards.length ? fCards.map(cardHtml).join('') : '<div style="font-size:11px;color:var(--t3);padding:4px 0">None</div>'}</div>
+            </div>
+            <div>
+              <div style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--t3);margin-bottom:8px;display:flex;align-items:center;gap:8px">
+                Visual <span style="color:var(--orange);font-weight:700;font-family:var(--head)">${vTotal}</span>
+              </div>
+              <div class="defect-grid">${vCards.length ? vCards.map(cardHtml).join('') : '<div style="font-size:11px;color:var(--t3);padding:4px 0">None</div>'}</div>
+            </div>
+          </div>
+        </div>`;
+    }).join('') +
+  `</div>`;
+}
+
+function dbkToggle(idx) {
+  const detail  = document.getElementById('dbk-d-' + idx);
+  const chevron = document.getElementById('dbk-c-' + idx);
+  if (!detail || !chevron) return;
+  const opening = detail.style.display === 'none';
+  detail.style.display  = opening ? 'block' : 'none';
+  chevron.classList.toggle('open', opening);
+}
+
+function renderDefectBreakdown(rows) {
+  const el = document.getElementById('defectBreakdown');
+  if (!el) return;
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty">No defect data for selected period</div>';
+    return;
+  }
+
+  const sevOrder = { Critical: 0, Major: 1, Minor: 2 };
+
+  // Build: product → component_type → severity → [defects]
+  const byProduct = {};
+  rows.forEach(r => {
+    const p = r.product || 'Unknown';
+    const c = r.component_type || 'car';
+    const s = r.severity || 'Minor';
+    if (!byProduct[p]) byProduct[p] = { total: 0, components: {} };
+    if (!byProduct[p].components[c]) byProduct[p].components[c] = { total: 0, bySev: {} };
+    if (!byProduct[p].components[c].bySev[s]) byProduct[p].components[c].bySev[s] = { total: 0, defects: [] };
+    const n = Number(r.defect_count) || 0;
+    byProduct[p].total                          += n;
+    byProduct[p].components[c].total            += n;
+    byProduct[p].components[c].bySev[s].total   += n;
+    byProduct[p].components[c].bySev[s].defects.push({
+      code: r.defect_code, issue: r.issue, count: n, training: r.training_flag
+    });
+  });
+
+  const products = Object.keys(byProduct).sort();
+
+  el.innerHTML = `<div class="dbk-wrap">` + products.map((prod, pi) => {
+    const pd = byProduct[prod];
+    const comps = Object.keys(pd.components).sort(); // car before remote
+
+    const compHtml = comps.map(comp => {
+      const cd = pd.components[comp];
+      const sevs = Object.keys(cd.bySev).sort((a, b) => (sevOrder[a] ?? 9) - (sevOrder[b] ?? 9));
+
+      const sevHtml = sevs.map(sev => {
+        const sd = cd.bySev[sev];
+        const defects = sd.defects.sort((a, b) => b.count - a.count);
+        return `
+          <div class="dbk-severity-group">
+            <div class="dbk-severity-badge ${sev.toLowerCase()}">${sev} <span style="opacity:.7;font-weight:400">${sd.total} occurrences</span></div>
+            ${defects.map(d => `
+              <div class="dbk-defect-row">
+                <span class="dbk-defect-code">${d.code}</span>
+                <span class="dbk-defect-issue">${d.issue || '—'}</span>
+                ${d.training ? '<span class="dbk-train">Training</span>' : ''}
+                <span class="dbk-defect-count">${d.count}</span>
+              </div>`).join('')}
+          </div>`;
+      }).join('');
+
+      const compLabel = comp === 'car' ? 'Car' : 'Remote';
+      const compColor = comp === 'car' ? 'var(--yellow)' : 'var(--blue)';
+      return `
+        <div class="dbk-component-section">
+          <div class="dbk-component-label" style="color:${compColor}">${compLabel} <span style="color:var(--t3);font-size:9px;font-weight:400">${cd.total} occurrences</span></div>
+          ${sevHtml}
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="dbk-product-row" onclick="dbkToggle(${pi})">
+        <span class="dbk-chevron" id="dbk-c-${pi}">▶</span>
+        <span class="dbk-product-name">${prod}</span>
+        <div class="dbk-product-meta">
+          <span><strong>${pd.total}</strong> defect occurrences</span>
+        </div>
       </div>
-      <div class="dc-issue">${d.issue || '—'}</div>
-      <div class="dc-meta">
-        <span>${d.category || '—'}</span>
-        <span>${d.severity || '—'}</span>
-      </div>
-    </div>
-  `).join('');
+      <div class="dbk-product-detail" id="dbk-d-${pi}" style="display:none">
+        ${compHtml}
+      </div>`;
+  }).join('') + `</div>`;
 }
 
 function renderRepeatDefects(rows) {
