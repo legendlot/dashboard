@@ -3205,7 +3205,7 @@ async function loadAlerts(from, to) {
 
   const [vData, sData] = await Promise.all([
     api('getViolations',       params),
-    api('getViolationSummary', { date: from }),
+    api('getViolationSummary', { from, to }),
   ]);
 
   if (sData.ok) renderAlertCards(sData.data);
