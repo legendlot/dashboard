@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LOT — Production Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Tomorrow:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 :root {
   --yellow: #F2CD1A;
@@ -576,6 +577,65 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 .dbk-defect-count{font-family:var(--head);font-weight:700;font-size:14px;color:var(--red);width:28px;text-align:right;flex-shrink:0}
 .dbk-train{font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:1px 5px;border-radius:3px;background:rgba(222,42,42,.12);color:var(--red);border:1px solid rgba(222,42,42,.25);flex-shrink:0}
 
+/* ── REPORTING v2 ── */
+.rpt-sections{
+  display:flex;gap:0;border-bottom:2px solid var(--b1);
+  padding:0;margin-bottom:0;flex-shrink:0;
+}
+.rpt-section-btn{
+  padding:9px 20px;font-size:9px;letter-spacing:.2em;text-transform:uppercase;font-weight:700;
+  color:var(--t3);cursor:pointer;background:none;border:none;font-family:var(--mono);
+  border-bottom:2px solid transparent;position:relative;bottom:-2px;transition:all .15s;
+}
+.rpt-section-btn:hover{color:var(--t2)}
+.rpt-section-btn.active{color:var(--yellow);border-bottom-color:var(--yellow)}
+.rpt-time-bar{
+  display:flex;align-items:center;gap:8px;padding:10px 0 12px;flex-wrap:wrap;flex-shrink:0;
+}
+.rpt-time-btn{
+  padding:5px 14px;font-size:9px;letter-spacing:.15em;text-transform:uppercase;font-weight:600;
+  color:var(--t2);background:var(--s3);border:1px solid var(--b2);border-radius:4px;
+  cursor:pointer;font-family:var(--mono);transition:all .12s;
+}
+.rpt-time-btn:hover{border-color:var(--yellow);color:var(--yellow)}
+.rpt-time-btn.active{background:var(--yellow);color:#080808;border-color:var(--yellow)}
+.rpt-custom-range{display:flex;align-items:center;gap:8px}
+.rpt-period-label{font-size:10px;color:var(--t3);margin-left:4px;letter-spacing:.05em}
+.rpt-section-content{display:flex;flex-direction:column;gap:16px;flex:1;min-height:0}
+.rpt-chart-wrap{
+  background:var(--s2);border:1px solid var(--b1);border-radius:8px;
+  padding:16px;height:220px;position:relative;
+}
+.rpt-chart-wrap canvas{max-height:188px}
+.rpt-breakdown-header{display:flex;align-items:center;gap:12px;margin-bottom:-8px}
+.rpt-toggle{display:flex;gap:0;border:1px solid var(--b2);border-radius:4px;overflow:hidden}
+.rpt-toggle-btn{
+  padding:4px 12px;font-size:9px;letter-spacing:.15em;text-transform:uppercase;font-weight:600;
+  color:var(--t3);background:none;border:none;font-family:var(--mono);cursor:pointer;transition:all .12s;
+}
+.rpt-toggle-btn.active{background:var(--yellow);color:#080808}
+.rpt-toggle-btn:not(.active):hover{color:var(--t2);background:var(--s3)}
+.rpt-dl-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;
+}
+.rpt-dl-card{
+  background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:18px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.rpt-dl-icon{font-size:22px;line-height:1}
+.rpt-dl-title{
+  font-family:var(--head);font-weight:700;font-size:13px;color:var(--text);
+}
+.rpt-dl-desc{font-size:11px;color:var(--t2);line-height:1.5;flex:1}
+.rpt-dl-btn{
+  margin-top:4px;padding:8px 12px;background:var(--s3);border:1px solid var(--b2);
+  border-radius:4px;color:var(--yellow);font-family:var(--mono);font-size:10px;
+  letter-spacing:.12em;text-transform:uppercase;cursor:pointer;font-weight:600;
+  transition:all .12s;
+}
+.rpt-dl-btn:hover{background:var(--yellow);color:#080808;border-color:var(--yellow)}
+.rpt-dl-btn:disabled{opacity:.5;cursor:default}
+
 </style>
 </head>
 <body>
@@ -912,59 +972,69 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
       <div class="loading"><div class="spinner"></div> Loading...</div>
     </div>
   </div>
-  <!-- REPORTING TAB -->
+  <!-- REPORTING TAB v2 -->
   <div id="tab-reporting" class="content" style="display:none">
 
-    <div style="display:flex;align-items:center;gap:10px;padding:12px 0 4px;flex-wrap:wrap">
-      <span style="font-size:10px;color:var(--t3);letter-spacing:.1em">FROM</span>
-      <input type="date" id="reportFrom" class="date-input" onchange="loadReporting()">
-      <span style="font-size:10px;color:var(--t3);letter-spacing:.1em">TO</span>
-      <input type="date" id="reportTo" class="date-input" onchange="loadReporting()">
-      <button class="date-btn" onclick="setReportToday()">Today</button>
-      <button class="date-btn" onclick="setReportWeek()">This Week</button>
-      <button class="date-btn" onclick="setReportMonth()">This Month</button>
+    <!-- SECTION TABS -->
+    <div class="rpt-sections">
+      <button class="rpt-section-btn active" data-section="production" onclick="switchRptSection('production')">Production</button>
+      <button class="rpt-section-btn"        data-section="cycletime"  onclick="switchRptSection('cycletime')">Cycle Time</button>
+      <button class="rpt-section-btn"        data-section="defects"    onclick="switchRptSection('defects')">Defects</button>
+      <button class="rpt-section-btn"        data-section="downloads"  onclick="switchRptSection('downloads')">Downloads</button>
     </div>
 
-    <div>
-      <div class="sec-label">Production Summary</div>
-      <div class="cards" id="reportingCards">
-        <div class="loading"><div class="spinner"></div></div>
+    <!-- TIME BAR -->
+    <div class="rpt-time-bar" id="rptTimeBar">
+      <button class="rpt-time-btn active" data-preset="10days" onclick="setRptPreset('10days')">10 Days</button>
+      <button class="rpt-time-btn"        data-preset="week"   onclick="setRptPreset('week')">This Week</button>
+      <button class="rpt-time-btn"        data-preset="month"  onclick="setRptPreset('month')">This Month</button>
+      <button class="rpt-time-btn"        data-preset="custom" onclick="setRptPreset('custom')">Custom</button>
+      <div class="rpt-custom-range" id="rptCustomRange" style="display:none">
+        <input type="date" id="rptFrom" class="date-input" onchange="loadReporting()">
+        <span style="font-size:10px;color:var(--t3)">→</span>
+        <input type="date" id="rptTo" class="date-input" onchange="loadReporting()">
       </div>
+      <span class="rpt-period-label" id="rptPeriodLabel"></span>
     </div>
 
-    <div>
-      <div class="sec-label">Cycle Time Summary</div>
-      <div id="reportingCycleTimes">
-        <div class="loading"><div class="spinner"></div></div>
+    <!-- PRODUCTION SECTION -->
+    <div id="rpt-production" class="rpt-section-content">
+      <div class="cards" id="rptProdCards"><div class="loading"><div class="spinner"></div></div></div>
+      <div class="rpt-chart-wrap"><canvas id="rptProdChart"></canvas></div>
+      <div class="rpt-breakdown-header">
+        <div class="sec-label" style="flex:1;margin-bottom:0">Breakdown</div>
+        <div class="rpt-toggle">
+          <button class="rpt-toggle-btn active" data-view="product" onclick="switchProdBreakdown('product')">By Product</button>
+          <button class="rpt-toggle-btn"        data-view="line"    onclick="switchProdBreakdown('line')">By Line</button>
+        </div>
       </div>
+      <div class="table-wrap" id="rptProdTable"><div class="loading"><div class="spinner"></div></div></div>
     </div>
 
-    <div>
-      <div class="sec-label">QC Summary</div>
-      <div id="reportingQCSummary">
-        <div class="loading"><div class="spinner"></div></div>
-      </div>
+    <!-- CYCLE TIME SECTION -->
+    <div id="rpt-cycletime" class="rpt-section-content" style="display:none">
+      <div class="cards" id="rptCtCards"><div class="loading"><div class="spinner"></div></div></div>
+      <div class="rpt-chart-wrap"><canvas id="rptCtChart"></canvas></div>
+      <div class="ct-panels" id="rptCtPanels"></div>
     </div>
 
-    <div>
-      <div class="sec-label">Product Breakdown</div>
-      <div class="table-wrap" id="reportingProductTable">
-        <div class="loading"><div class="spinner"></div></div>
+    <!-- DEFECTS SECTION -->
+    <div id="rpt-defects" class="rpt-section-content" style="display:none">
+      <div class="cards" id="rptDefCards"><div class="loading"><div class="spinner"></div></div></div>
+      <div class="rpt-chart-wrap"><canvas id="rptDefChart"></canvas></div>
+      <div class="rpt-breakdown-header">
+        <div class="sec-label" style="flex:1;margin-bottom:0">Breakdown</div>
+        <div class="rpt-toggle">
+          <button class="rpt-toggle-btn active" data-view="code"    onclick="switchDefBreakdown('code')">By Defect Code</button>
+          <button class="rpt-toggle-btn"        data-view="product" onclick="switchDefBreakdown('product')">By Product</button>
+        </div>
       </div>
+      <div class="table-wrap" id="rptDefTable"><div class="loading"><div class="spinner"></div></div></div>
     </div>
 
-    <div>
-      <div class="sec-label">Daily Output</div>
-      <div class="table-wrap" id="reportingDailyTable">
-        <div class="loading"><div class="spinner"></div></div>
-      </div>
-    </div>
-
-    <div>
-      <div class="sec-label">Line Breakdown</div>
-      <div class="table-wrap" id="reportingLineTable">
-        <div class="loading"><div class="spinner"></div></div>
-      </div>
+    <!-- DOWNLOADS SECTION -->
+    <div id="rpt-downloads" class="rpt-section-content" style="display:none">
+      <div class="rpt-dl-grid" id="rptDlGrid"></div>
     </div>
 
   </div>
@@ -3642,340 +3712,594 @@ async function submitReturnsAction(outcome) {
   }
 }
 
-// ── REPORTING TAB ────────────────────────────────────────────
-function setReportToday() {
-  const t = todayStr();
-  document.getElementById('reportFrom').value = t;
-  document.getElementById('reportTo').value   = t;
-  loadReporting();
+// ══════════════════════════════════════════════════════
+// REPORTING v2
+// ══════════════════════════════════════════════════════
+
+let rptSection      = 'production';
+let rptPreset       = '10days';
+let rptProdView     = 'product';
+let rptDefView      = 'code';
+let rptData         = { pva: [], ct: null, qc: null };
+let rptProdChartInst = null;
+let rptCtChartInst   = null;
+let rptDefChartInst  = null;
+
+// ── Date helpers ──────────────────────────────────────
+function getRptFrom() {
+  if (rptPreset === 'custom') return document.getElementById('rptFrom')?.value || todayStr();
+  if (rptPreset === '10days') { const d = new Date(); d.setDate(d.getDate()-9); return d.toISOString().split('T')[0]; }
+  if (rptPreset === 'week')   { const d = new Date(); d.setDate(d.getDate()-d.getDay()+1); return d.toISOString().split('T')[0]; }
+  if (rptPreset === 'month')  { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]; }
+  return todayStr();
 }
-function setReportWeek() {
-  const mon = new Date(); mon.setDate(mon.getDate() - mon.getDay() + 1);
-  document.getElementById('reportFrom').value = mon.toISOString().split('T')[0];
-  document.getElementById('reportTo').value   = todayStr();
-  loadReporting();
+function getRptTo() {
+  if (rptPreset === 'custom') return document.getElementById('rptTo')?.value || todayStr();
+  return todayStr();
 }
-function setReportMonth() {
-  const from = new Date(); from.setDate(1);
-  document.getElementById('reportFrom').value = from.toISOString().split('T')[0];
-  document.getElementById('reportTo').value   = todayStr();
-  loadReporting();
+function rptFmtDate(d) {
+  if (!d) return '';
+  const [,m,day] = d.split('-');
+  return day + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1];
+}
+function fmtMins(v) {
+  if (!v || isNaN(v)) return '—';
+  const n = Number(v);
+  return n < 60 ? Math.round(n) + ' min' : (n/60).toFixed(1) + ' hr';
+}
+function updateRptPeriodLabel() {
+  const el = document.getElementById('rptPeriodLabel');
+  if (!el) return;
+  const from = getRptFrom(), to = getRptTo();
+  el.textContent = from === to ? rptFmtDate(from) : rptFmtDate(from) + ' – ' + rptFmtDate(to);
 }
 
+// ── Time preset ───────────────────────────────────────
+function setRptPreset(preset) {
+  rptPreset = preset;
+  document.querySelectorAll('.rpt-time-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === preset));
+  document.getElementById('rptCustomRange').style.display = preset === 'custom' ? 'flex' : 'none';
+  if (preset !== 'custom') loadReporting();
+  updateRptPeriodLabel();
+}
+
+// ── Section switching ─────────────────────────────────
+function switchRptSection(section) {
+  rptSection = section;
+  document.querySelectorAll('.rpt-section-btn').forEach(b => b.classList.toggle('active', b.dataset.section === section));
+  ['production','cycletime','defects','downloads'].forEach(s => {
+    document.getElementById('rpt-'+s).style.display = s === section ? 'flex' : 'none';
+  });
+  document.getElementById('rptTimeBar').style.display = section === 'downloads' ? 'none' : '';
+  renderRptSection(section);
+}
+function renderRptSection(s) {
+  if (s === 'production') renderRptProduction();
+  if (s === 'cycletime')  renderRptCycleTime();
+  if (s === 'defects')    renderRptDefects();
+  if (s === 'downloads')  renderRptDownloads();
+}
+
+// ── Main load ─────────────────────────────────────────
 async function loadReporting() {
-  const from = document.getElementById('reportFrom')?.value || todayStr();
-  const to   = document.getElementById('reportTo')?.value   || todayStr();
-  ['reportingCards','reportingCycleTimes','reportingQCSummary',
-   'reportingProductTable','reportingDailyTable','reportingLineTable'].forEach(id => {
+  const from = getRptFrom(), to = getRptTo();
+  updateRptPeriodLabel();
+  ['rptProdCards','rptCtCards','rptDefCards'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   });
-
   const [pvaRes, ctRes, qcRes] = await Promise.all([
     api('getPlanVsActual',     { from, to }),
     api('getCycleTimeSummary', { from, to }),
     api('getQCView',           { from, to }),
   ]);
-
-  const rows = pvaRes.ok ? (pvaRes.data || []) : [];
-  const ct   = ctRes.ok  ? ctRes.data  : null;
-  const qc   = qcRes.ok  ? qcRes.data  : null;
-
-  renderReportingCards(rows, from, to);
-  renderReportingCycleTimes(ct);
-  renderReportingQCSummary(qc);
-  renderProductBreakdown(rows);
-  renderReportingDaily(rows);
-  renderReportingLines(rows);
+  rptData.pva = pvaRes.ok ? (pvaRes.data||[]) : [];
+  rptData.ct  = ctRes.ok  ? ctRes.data  : null;
+  rptData.qc  = qcRes.ok  ? qcRes.data  : null;
+  renderRptSection(rptSection);
 }
 
-function renderReportingCycleTimes(data) {
-  const el = document.getElementById('reportingCycleTimes');
-  if (!el) return;
-  if (!data) {
-    el.innerHTML = '<div class="empty">No cycle time data for period</div>';
-    return;
-  }
-
-  function ctPanel(ct, label, segment, splitA, labelA, splitB, labelB) {
-    if (!ct || !ct.units_measured) {
-      return '<div class="ct-panel"><div class="ct-panel-label">' + label + '</div>' +
-        '<div class="ct-panel-segment">' + segment + '</div>' +
-        '<div class="ct-panel-avg" style="color:var(--t3)">—</div>' +
-        '<div class="ct-panel-sub">No data for period</div></div>';
-    }
-    const avgColor = ct.avg_mins_all <= 30 ? 'var(--green)' : ct.avg_mins_all <= 60 ? 'var(--yellow)' : 'var(--red)';
-    const outlierHtml = Number(ct.outlier_count) > 0
-      ? '<div class="ct-panel-outlier">⚠ ' + ct.outlier_count + ' outlier' + (Number(ct.outlier_count) > 1 ? 's' : '') + ' excluded — max ' + fmtMins(ct.outlier_max_mins) + '</div>'
-      : '';
-    return `
-      <div class="ct-panel active">
-        <div class="ct-panel-label">${label}</div>
-        <div class="ct-panel-segment">${segment}</div>
-        <div class="ct-panel-avg" style="color:${avgColor}">${fmtMins(ct.avg_mins_all)}</div>
-        <div class="ct-panel-sub">${fmt(ct.units_measured)} units · median ${fmtMins(ct.median_mins)}</div>
-        <div class="ct-panel-divider"></div>
-        <div class="ct-panel-row"><span>${labelA}</span><span>${fmtMins(ct[splitA])}</span></div>
-        <div class="ct-panel-row"><span>${labelB}</span><span>${fmtMins(ct[splitB])}</span></div>
-        <div class="ct-panel-row"><span>Fastest</span><span>${fmtMins(ct.fastest_mins)}</span></div>
-        <div class="ct-panel-row"><span>Slowest</span><span>${fmtMins(ct.slowest_normal_mins)}</span></div>
-        ${outlierHtml}
-      </div>`;
-  }
-
-  el.innerHTML = `<div class="ct-panels">
-    ${ctPanel(data.qc,  'QC Cycle Time',  'INW → QC outcome',     'avg_mins_pass', 'QC Pass', 'avg_mins_fail', 'QC Fail')}
-    ${ctPanel(data.pkg, 'PKG Cycle Time', 'QC Pass → Packaging',  'avg_mins_ecom', 'Ecom',    'avg_mins_retail','Retail')}
-    ${ctPanel(data.rtd, 'RTD Cycle Time', 'Packaging → Dispatch', 'avg_mins_ecom', 'RTE',     'avg_mins_retail','RTR')}
-  </div>`;
+// ══ PRODUCTION ════════════════════════════════════════
+function switchProdBreakdown(view) {
+  rptProdView = view;
+  document.querySelectorAll('#rpt-production .rpt-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  renderRptProdTable();
 }
 
-function renderReportingQCSummary(qc) {
-  const el = document.getElementById('reportingQCSummary');
-  if (!el) return;
-  if (!qc) { el.innerHTML = '<div class="empty">No QC data for period</div>'; return; }
+function renderRptProduction() {
+  const rows = rptData.pva || [];
+  const qc   = rptData.qc;
+  const cardsEl = document.getElementById('rptProdCards');
 
-  const fpy = qc.fpy || [];
-  const heatmap = qc.heatmap || [];
+  const totalTarget     = rows.reduce((s,r) => s+(Number(r.target_qty)||0), 0);
+  const totalPass       = rows.reduce((s,r) => s+(Number(r.actual_qc_pass)||0), 0);
+  const totalDispatched = rows.reduce((s,r) => s+(Number(r.total_dispatched)||0), 0);
+  const totalRtr        = rows.reduce((s,r) => s+(Number(r.actual_rtr)||0), 0);
+  const totalRte        = rows.reduce((s,r) => s+(Number(r.actual_rte)||0), 0);
+  const dispPct         = totalTarget > 0 ? Math.round((totalDispatched/totalTarget)*100) : 0;
 
-  // Aggregate FPY
-  let totalPass = 0, totalFail = 0;
-  fpy.forEach(r => {
-    const inspected = Number(r.total_inspected) || 0;
-    const passed    = Number(r.first_pass)       || 0;
-    totalPass += passed;
-    totalFail += (inspected - passed);
+  let totalInsp = 0, totalFail = 0;
+  (qc?.fpy||[]).forEach(r => {
+    const insp = Number(r.total_inspected)||0, pass = Number(r.first_pass)||0;
+    totalInsp += insp; totalFail += (insp-pass);
   });
-  const totalInspected = totalPass + totalFail;
-  const overallFpy = totalInspected > 0 ? ((totalPass / totalInspected) * 100).toFixed(1) : null;
-  const fpyColor = overallFpy >= 95 ? 'var(--green)' : overallFpy >= 85 ? 'var(--yellow)' : 'var(--red)';
+  const fpy = totalInsp > 0 ? ((totalInsp-totalFail)/totalInsp*100).toFixed(1) : null;
+  const fpyCol = fpy >= 95 ? 'var(--green)' : fpy >= 85 ? 'var(--yellow)' : fpy != null ? 'var(--red)' : 'var(--t3)';
+  const fpyCls = fpy >= 95 ? 'ok' : fpy >= 85 ? 'warn' : fpy != null ? 'bad' : '';
 
-  // Aggregate defects
-  const defAgg = {};
-  heatmap.forEach(r => {
-    if (!defAgg[r.defect_code]) defAgg[r.defect_code] = { code: r.defect_code, issue: r.issue, count: 0 };
-    defAgg[r.defect_code].count += (Number(r.defect_count) || 0);
-  });
-  const topDefects = Object.values(defAgg).sort((a,b) => b.count - a.count).slice(0, 6);
-
-  el.innerHTML = `
-    <div class="rqc-wrap">
-      <div>
-        <div class="cards" style="grid-template-columns:1fr 1fr">
-          <div class="card ${overallFpy >= 95 ? 'ok' : overallFpy >= 85 ? 'warn' : overallFpy != null ? 'bad' : ''}">
-            <div class="card-label">First Pass Yield</div>
-            <div class="card-val" style="font-size:28px;color:${fpyColor}">${overallFpy != null ? overallFpy + '%' : '—'}</div>
-            <div class="card-sub">${fmt(totalInspected)} inspected</div>
-          </div>
-          <div class="card ${totalFail > 0 ? 'bad' : ''}">
-            <div class="card-label">Total Failures</div>
-            <div class="card-val" style="font-size:28px;color:${totalFail > 0 ? 'var(--red)' : ''}">${fmt(totalFail)}</div>
-            <div class="card-sub">${fmt(totalPass)} passed</div>
-          </div>
-        </div>
-      </div>
-      <div class="table-wrap rqc-defects">
-        ${topDefects.length ? `
-        <table>
-          <thead><tr><th>Code</th><th>Issue</th><th style="text-align:right">Count</th></tr></thead>
-          <tbody>
-            ${topDefects.map(d => `
-              <tr>
-                <td style="font-family:var(--mono);color:var(--yellow);font-size:10px">${d.code}</td>
-                <td>${d.issue || '—'}</td>
-                <td style="font-family:var(--mono);color:var(--red);text-align:right;font-weight:700">${d.count}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>` : '<div class="empty">No defects logged</div>'}
-      </div>
-    </div>`;
-}
-
-function renderProductBreakdown(rows) {
-  const el = document.getElementById('reportingProductTable');
-  if (!el) return;
-  if (!rows.length) { el.innerHTML = '<div class="empty">No data</div>'; return; }
-
-  const byProduct = {};
-  rows.forEach(r => {
-    const key = r.product || '—';
-    if (!byProduct[key]) byProduct[key] = { target:0, pass:0, dispatched:0, rtr:0, rte:0, runs:0 };
-    const d = byProduct[key];
-    d.target     += Number(r.target_qty)       || 0;
-    d.pass       += Number(r.actual_qc_pass)   || 0;
-    d.dispatched += Number(r.total_dispatched) || 0;
-    d.rtr        += Number(r.actual_rtr)       || 0;
-    d.rte        += Number(r.actual_rte)       || 0;
-    d.runs++;
-  });
-
-  const products = Object.keys(byProduct).sort();
-  el.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Product</th><th>Runs</th><th>Target</th>
-          <th>QC Pass</th><th>Dispatched</th><th>Retail</th><th>Ecom</th><th>Done %</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${products.map(p => {
-          const d = byProduct[p];
-          const pct = d.target > 0 ? Math.round((d.dispatched / d.target) * 100) : 0;
-          const pctColor = pct >= 90 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : pct > 0 ? 'var(--orange)' : 'var(--t3)';
-          return `<tr>
-            <td style="color:var(--text)">${p}</td>
-            <td class="td-mono">${d.runs}</td>
-            <td class="td-mono">${fmt(d.target)}</td>
-            <td class="td-mono" style="color:var(--green)">${fmt(d.pass)}</td>
-            <td class="td-mono" style="color:var(--text)">${fmt(d.dispatched)}</td>
-            <td class="td-mono" style="color:#a78bfa">${fmt(d.rtr)}</td>
-            <td class="td-mono" style="color:#38bdf8">${fmt(d.rte)}</td>
-            <td class="td-mono" style="color:${pctColor};font-weight:700">${pct}%</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>`;
-}
-
-
-function renderReportingCards(rows, from, to) {
-  const el = document.getElementById('reportingCards');
   if (!rows.length) {
-    el.innerHTML = '<div class="empty">No data for selected period</div>';
+    cardsEl.innerHTML = '<div class="empty">No data for selected period</div>';
+    document.getElementById('rptProdTable').innerHTML = '<div class="empty">No data</div>';
+    if (rptProdChartInst) { rptProdChartInst.destroy(); rptProdChartInst = null; }
     return;
   }
 
-  const totalTarget     = rows.reduce((s, r) => s + (Number(r.target_qty)       || 0), 0);
-  const totalPass       = rows.reduce((s, r) => s + (Number(r.actual_qc_pass)   || 0), 0);
-  const totalDispatched = rows.reduce((s, r) => s + (Number(r.total_dispatched) || 0), 0);
-  const totalRtr        = rows.reduce((s, r) => s + (Number(r.actual_rtr)       || 0), 0);
-  const totalRte        = rows.reduce((s, r) => s + (Number(r.actual_rte)       || 0), 0);
-  const dispatchPct     = totalTarget > 0 ? Math.round((totalDispatched / totalTarget) * 100) : 0;
-  const uniqueDays      = new Set(rows.map(r => r.run_date)).size;
-  const uniqueLines     = new Set(rows.map(r => r.line_no).filter(Boolean)).size;
-
-  el.innerHTML = `
+  cardsEl.innerHTML = `
     <div class="card hi">
-      <div class="card-label">Total QC Pass</div>
+      <div class="card-label">QC Pass</div>
       <div class="card-val yellow">${fmt(totalPass)}</div>
-      <div class="card-sub">${uniqueDays} days · ${uniqueLines} lines</div>
+      <div class="card-sub">${fmt(totalFail)} fails</div>
+    </div>
+    <div class="card ${fpyCls}">
+      <div class="card-label">First Pass Yield</div>
+      <div class="card-val" style="color:${fpyCol}">${fpy != null ? fpy+'%' : '—'}</div>
+      <div class="card-sub">${fmt(totalInsp)} inspected</div>
     </div>
     <div class="card ok">
-      <div class="card-label">Total Dispatched</div>
+      <div class="card-label">Dispatched</div>
       <div class="card-val green">${fmt(totalDispatched)}</div>
       <div class="card-sub">${fmt(totalRtr)} retail · ${fmt(totalRte)} ecom</div>
     </div>
-    <div class="card ${dispatchPct >= 90 ? 'ok' : dispatchPct >= 60 ? 'warn' : 'bad'}">
-      <div class="card-label">Dispatch vs Target</div>
-      <div class="card-val ${dispatchPct >= 90 ? 'green' : dispatchPct >= 60 ? 'yellow' : 'red'}">${dispatchPct}%</div>
+    <div class="card ${dispPct>=90?'ok':dispPct>=60?'warn':'bad'}">
+      <div class="card-label">vs Target</div>
+      <div class="card-val ${dispPct>=90?'green':dispPct>=60?'yellow':'red'}">${dispPct}%</div>
       <div class="card-sub">Target: ${fmt(totalTarget)}</div>
     </div>
     <div class="card">
-      <div class="card-label">Production Runs</div>
+      <div class="card-label">Runs</div>
       <div class="card-val">${rows.length}</div>
-      <div class="card-sub">In selected period</div>
-    </div>
-  `;
-}
+      <div class="card-sub">${new Set(rows.map(r=>r.run_date)).size} days</div>
+    </div>`;
 
-function renderReportingDaily(rows) {
-  const el = document.getElementById('reportingDailyTable');
-  if (!rows.length) { el.innerHTML = '<div class="empty">No data</div>'; return; }
-
-  // Group by date
+  // Chart — QC Pass + Dispatched per day
   const byDate = {};
   rows.forEach(r => {
-    if (!byDate[r.run_date]) byDate[r.run_date] = { target:0, pass:0, dispatched:0, rtr:0, rte:0, runs:0 };
-    const d = byDate[r.run_date];
-    d.target      += Number(r.target_qty)       || 0;
-    d.pass        += Number(r.actual_qc_pass)   || 0;
-    d.dispatched  += Number(r.total_dispatched) || 0;
-    d.rtr         += Number(r.actual_rtr)       || 0;
-    d.rte         += Number(r.actual_rte)       || 0;
-    d.runs++;
+    if (!byDate[r.run_date]) byDate[r.run_date] = {pass:0,dispatched:0};
+    byDate[r.run_date].pass       += Number(r.actual_qc_pass)||0;
+    byDate[r.run_date].dispatched += Number(r.total_dispatched)||0;
   });
+  const dates  = Object.keys(byDate).sort();
+  const labels = dates.map(rptFmtDate);
 
-  const dates = Object.keys(byDate).sort().reverse();
+  if (rptProdChartInst) rptProdChartInst.destroy();
+  const ctx = document.getElementById('rptProdChart')?.getContext('2d');
+  if (ctx && dates.length) {
+    Chart.defaults.color = '#666';
+    rptProdChartInst = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label:'QC Pass',    data:dates.map(d=>byDate[d].pass),       backgroundColor:'rgba(34,197,94,.65)',  borderColor:'rgba(34,197,94,1)',  borderWidth:1, borderRadius:3 },
+          { label:'Dispatched', data:dates.map(d=>byDate[d].dispatched), backgroundColor:'rgba(242,205,26,.65)', borderColor:'rgba(242,205,26,1)', borderWidth:1, borderRadius:3 },
+        ]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins: {
+          legend:  { labels:{ color:'#999', font:{family:'JetBrains Mono',size:10} } },
+          tooltip: { backgroundColor:'#151515', borderColor:'#2a2a2a', borderWidth:1,
+                     titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'} }
+        },
+        scales: {
+          x: { ticks:{color:'#666',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#181818'} },
+          y: { ticks:{color:'#666',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#181818'}, beginAtZero:true }
+        }
+      }
+    });
+  }
 
-  el.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th><th>Runs</th><th>Target</th>
-          <th>QC Pass</th><th>Dispatched</th><th>Retail</th><th>Ecom</th><th>Done %</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${dates.map(d => {
-          const row = byDate[d];
-          const pct = row.target > 0 ? Math.round((row.dispatched / row.target) * 100) : 0;
-          const pctColor = pct >= 90 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : pct > 0 ? 'var(--orange)' : 'var(--t3)';
-          return `<tr>
-            <td class="td-mono" style="color:var(--text)">${d}</td>
-            <td class="td-mono">${row.runs}</td>
-            <td class="td-mono">${fmt(row.target)}</td>
-            <td class="td-mono" style="color:var(--green)">${fmt(row.pass)}</td>
-            <td class="td-mono" style="color:var(--text)">${fmt(row.dispatched)}</td>
-            <td class="td-mono" style="color:#a78bfa">${fmt(row.rtr)}</td>
-            <td class="td-mono" style="color:#38bdf8">${fmt(row.rte)}</td>
-            <td class="td-mono" style="color:${pctColor};font-weight:700">${pct}%</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
-  `;
+  renderRptProdTable();
 }
 
-function renderReportingLines(rows) {
-  const el = document.getElementById('reportingLineTable');
+function renderRptProdTable() {
+  const rows = rptData.pva || [];
+  const el   = document.getElementById('rptProdTable');
   if (!rows.length) { el.innerHTML = '<div class="empty">No data</div>'; return; }
 
-  // Group by line
-  const byLine = {};
-  rows.forEach(r => {
-    const line = r.line_no || '—';
-    if (!byLine[line]) byLine[line] = { target:0, pass:0, dispatched:0, rtr:0, rte:0, runs:0, products: new Set() };
-    const d = byLine[line];
-    d.target     += Number(r.target_qty)       || 0;
-    d.pass       += Number(r.actual_qc_pass)   || 0;
-    d.dispatched += Number(r.total_dispatched) || 0;
-    d.rtr        += Number(r.actual_rtr)       || 0;
-    d.rte        += Number(r.actual_rte)       || 0;
-    d.runs++;
-    if (r.product) d.products.add(r.product);
+  if (rptProdView === 'product') {
+    const byP = {};
+    rows.forEach(r => {
+      const k = r.product||'—';
+      if (!byP[k]) byP[k]={target:0,pass:0,dispatched:0,rtr:0,rte:0,runs:0};
+      byP[k].target+=Number(r.target_qty)||0; byP[k].pass+=Number(r.actual_qc_pass)||0;
+      byP[k].dispatched+=Number(r.total_dispatched)||0; byP[k].rtr+=Number(r.actual_rtr)||0;
+      byP[k].rte+=Number(r.actual_rte)||0; byP[k].runs++;
+    });
+    el.innerHTML = `<table><thead><tr><th>Product</th><th>Runs</th><th>Target</th><th>QC Pass</th><th>Dispatched</th><th>Retail</th><th>Ecom</th><th>Done%</th></tr></thead><tbody>
+      ${Object.keys(byP).sort().map(p => {
+        const d=byP[p], pct=d.target>0?Math.round((d.dispatched/d.target)*100):0;
+        const pc=pct>=90?'var(--green)':pct>=60?'var(--yellow)':pct>0?'var(--orange)':'var(--t3)';
+        return `<tr><td>${p}</td><td class="td-mono">${d.runs}</td><td class="td-mono">${fmt(d.target)}</td>
+          <td class="td-mono" style="color:var(--green)">${fmt(d.pass)}</td><td class="td-mono">${fmt(d.dispatched)}</td>
+          <td class="td-mono" style="color:#a78bfa">${fmt(d.rtr)}</td><td class="td-mono" style="color:#38bdf8">${fmt(d.rte)}</td>
+          <td class="td-mono" style="color:${pc};font-weight:700">${pct}%</td></tr>`;
+      }).join('')}
+    </tbody></table>`;
+  } else {
+    const byL = {};
+    rows.forEach(r => {
+      const k=r.line_no||'—';
+      if (!byL[k]) byL[k]={target:0,pass:0,dispatched:0,rtr:0,rte:0,runs:0,prods:new Set()};
+      byL[k].target+=Number(r.target_qty)||0; byL[k].pass+=Number(r.actual_qc_pass)||0;
+      byL[k].dispatched+=Number(r.total_dispatched)||0; byL[k].rtr+=Number(r.actual_rtr)||0;
+      byL[k].rte+=Number(r.actual_rte)||0; byL[k].runs++;
+      if (r.product) byL[k].prods.add(r.product);
+    });
+    el.innerHTML = `<table><thead><tr><th>Line</th><th>Runs</th><th>Products</th><th>Target</th><th>QC Pass</th><th>Dispatched</th><th>Retail</th><th>Ecom</th><th>Done%</th></tr></thead><tbody>
+      ${Object.keys(byL).sort().map(line => {
+        const d=byL[line], pct=d.target>0?Math.round((d.dispatched/d.target)*100):0;
+        const pc=pct>=90?'var(--green)':pct>=60?'var(--yellow)':pct>0?'var(--orange)':'var(--t3)';
+        return `<tr><td style="color:var(--yellow);font-weight:700">${line}</td><td class="td-mono">${d.runs}</td>
+          <td style="font-size:11px;color:var(--t2)">${[...d.prods].sort().join(', ')||'—'}</td>
+          <td class="td-mono">${fmt(d.target)}</td><td class="td-mono" style="color:var(--green)">${fmt(d.pass)}</td>
+          <td class="td-mono">${fmt(d.dispatched)}</td><td class="td-mono" style="color:#a78bfa">${fmt(d.rtr)}</td>
+          <td class="td-mono" style="color:#38bdf8">${fmt(d.rte)}</td>
+          <td class="td-mono" style="color:${pc};font-weight:700">${pct}%</td></tr>`;
+      }).join('')}
+    </tbody></table>`;
+  }
+}
+
+// ══ CYCLE TIME ════════════════════════════════════════
+function renderRptCycleTime() {
+  const ct = rptData.ct;
+  const cardsEl  = document.getElementById('rptCtCards');
+  const panelsEl = document.getElementById('rptCtPanels');
+
+  if (!ct) {
+    cardsEl.innerHTML  = '<div class="empty">No cycle time data for period</div>';
+    panelsEl.innerHTML = '';
+    if (rptCtChartInst) { rptCtChartInst.destroy(); rptCtChartInst = null; }
+    return;
+  }
+
+  const qcAvg  = Number(ct.qc?.avg_mins_all)  || 0;
+  const pkgAvg = Number(ct.pkg?.avg_mins_all) || 0;
+  const rtdAvg = Number(ct.rtd?.avg_mins_all) || 0;
+  const cCol   = v => v <= 30 ? 'var(--green)' : v <= 60 ? 'var(--yellow)' : 'var(--red)';
+  const cCls   = v => v <= 30 ? 'ok' : v <= 60 ? 'warn' : 'bad';
+
+  cardsEl.innerHTML = `
+    <div class="card ${cCls(qcAvg)}">
+      <div class="card-label">QC Cycle Avg</div>
+      <div class="card-val" style="color:${cCol(qcAvg)};font-size:22px">${fmtMins(qcAvg)}</div>
+      <div class="card-sub">INW → QC outcome · ${fmt(ct.qc?.units_measured||0)} units</div>
+    </div>
+    <div class="card ${cCls(pkgAvg)}">
+      <div class="card-label">PKG Cycle Avg</div>
+      <div class="card-val" style="color:${cCol(pkgAvg)};font-size:22px">${fmtMins(pkgAvg)}</div>
+      <div class="card-sub">QC Pass → Packaging · ${fmt(ct.pkg?.units_measured||0)} units</div>
+    </div>
+    <div class="card ${cCls(rtdAvg)}">
+      <div class="card-label">RTD Cycle Avg</div>
+      <div class="card-val" style="color:${cCol(rtdAvg)};font-size:22px">${fmtMins(rtdAvg)}</div>
+      <div class="card-sub">PKG → Dispatch · ${fmt(ct.rtd?.units_measured||0)} units</div>
+    </div>`;
+
+  // Bar chart comparing three stages
+  if (rptCtChartInst) rptCtChartInst.destroy();
+  const ctx = document.getElementById('rptCtChart')?.getContext('2d');
+  if (ctx) {
+    rptCtChartInst = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['QC Cycle  (INW → QC)', 'PKG Cycle  (QC Pass → PKG)', 'RTD Cycle  (PKG → Dispatch)'],
+        datasets: [{
+          data: [qcAvg, pkgAvg, rtdAvg],
+          backgroundColor: [
+            qcAvg  <= 30 ? 'rgba(34,197,94,.7)'  : qcAvg  <= 60 ? 'rgba(242,205,26,.7)' : 'rgba(222,42,42,.7)',
+            pkgAvg <= 30 ? 'rgba(34,197,94,.7)'  : pkgAvg <= 60 ? 'rgba(242,205,26,.7)' : 'rgba(222,42,42,.7)',
+            rtdAvg <= 30 ? 'rgba(34,197,94,.7)'  : rtdAvg <= 60 ? 'rgba(242,205,26,.7)' : 'rgba(222,42,42,.7)',
+          ],
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        indexAxis: 'y', responsive:true, maintainAspectRatio:false,
+        plugins: {
+          legend: {display:false},
+          tooltip: { backgroundColor:'#151515', borderColor:'#2a2a2a', borderWidth:1,
+            titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'},
+            callbacks: { label: c => fmtMins(c.raw) }
+          }
+        },
+        scales: {
+          x: { ticks:{color:'#666',font:{family:'JetBrains Mono',size:10},callback:v=>fmtMins(v)}, grid:{color:'#181818'}, beginAtZero:true },
+          y: { ticks:{color:'#999',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#181818'} }
+        }
+      }
+    });
+  }
+
+  // Detail panels
+  function ctPanel(data, label, segment, splitA, labelA, splitB, labelB) {
+    if (!data?.units_measured) return `<div class="ct-panel"><div class="ct-panel-label">${label}</div><div class="ct-panel-segment">${segment}</div><div class="ct-panel-avg" style="color:var(--t3)">—</div><div class="ct-panel-sub">No data for period</div></div>`;
+    const avgCol = data.avg_mins_all<=30?'var(--green)':data.avg_mins_all<=60?'var(--yellow)':'var(--red)';
+    const out = Number(data.outlier_count)>0 ? `<div class="ct-panel-outlier">⚠ ${data.outlier_count} outlier${Number(data.outlier_count)>1?'s':''} excluded — max ${fmtMins(data.outlier_max_mins)}</div>` : '';
+    return `<div class="ct-panel active">
+      <div class="ct-panel-label">${label}</div>
+      <div class="ct-panel-segment">${segment}</div>
+      <div class="ct-panel-avg" style="color:${avgCol}">${fmtMins(data.avg_mins_all)}</div>
+      <div class="ct-panel-sub">${fmt(data.units_measured)} units · median ${fmtMins(data.median_mins)}</div>
+      <div class="ct-panel-divider"></div>
+      <div class="ct-panel-row"><span>${labelA}</span><span>${fmtMins(data[splitA])}</span></div>
+      <div class="ct-panel-row"><span>${labelB}</span><span>${fmtMins(data[splitB])}</span></div>
+      <div class="ct-panel-row"><span>Fastest</span><span>${fmtMins(data.fastest_mins)}</span></div>
+      <div class="ct-panel-row"><span>Slowest (normal)</span><span>${fmtMins(data.slowest_normal_mins)}</span></div>
+      ${out}
+    </div>`;
+  }
+  panelsEl.innerHTML = `<div class="ct-panels">
+    ${ctPanel(ct.qc,  'QC Cycle Time',  'INW → QC outcome',      'avg_mins_pass',  'QC Pass', 'avg_mins_fail',  'QC Fail')}
+    ${ctPanel(ct.pkg, 'PKG Cycle Time', 'QC Pass → Packaging',   'avg_mins_ecom',  'Ecom',    'avg_mins_retail','Retail')}
+    ${ctPanel(ct.rtd, 'RTD Cycle Time', 'Packaging → Dispatch',  'avg_mins_ecom',  'RTE',     'avg_mins_retail','RTR')}
+  </div>`;
+}
+
+// ══ DEFECTS ══════════════════════════════════════════
+function switchDefBreakdown(view) {
+  rptDefView = view;
+  document.querySelectorAll('#rpt-defects .rpt-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  renderRptDefTable();
+}
+
+function renderRptDefects() {
+  const qc      = rptData.qc;
+  const cardsEl = document.getElementById('rptDefCards');
+
+  if (!qc) {
+    cardsEl.innerHTML = '<div class="empty">No defect data for period</div>';
+    document.getElementById('rptDefTable').innerHTML = '<div class="empty">No data</div>';
+    if (rptDefChartInst) { rptDefChartInst.destroy(); rptDefChartInst = null; }
+    return;
+  }
+
+  const heatmap = qc.heatmap || [];
+  const fpy     = qc.fpy     || [];
+  let totalInsp = 0, totalFail = 0;
+  fpy.forEach(r => { const i=Number(r.total_inspected)||0, p=Number(r.first_pass)||0; totalInsp+=i; totalFail+=(i-p); });
+  const fpyPct  = totalInsp > 0 ? ((totalInsp-totalFail)/totalInsp*100).toFixed(1) : null;
+  const fpyCol  = fpyPct>=95?'var(--green)':fpyPct>=85?'var(--yellow)':fpyPct!=null?'var(--red)':'var(--t3)';
+
+  const defAgg = {};
+  heatmap.forEach(r => {
+    const c = r.defect_code;
+    if (!defAgg[c]) defAgg[c]={code:c,issue:r.issue,count:0,category:r.category||'',severity:r.severity||'—',prods:new Set()};
+    defAgg[c].count+=Number(r.defect_count)||0;
+    if (r.product) defAgg[c].prods.add(r.product);
   });
+  const sorted = Object.values(defAgg).sort((a,b)=>b.count-a.count);
+  const top    = sorted[0];
 
-  const lines = Object.keys(byLine).sort();
+  cardsEl.innerHTML = `
+    <div class="card ${totalFail>0?'bad':''}">
+      <div class="card-label">Total Failures</div>
+      <div class="card-val" style="color:${totalFail>0?'var(--red)':''}">${fmt(totalFail)}</div>
+      <div class="card-sub">${fmt(totalInsp)} units inspected</div>
+    </div>
+    <div class="card ${fpyPct>=95?'ok':fpyPct>=85?'warn':fpyPct!=null?'bad':''}">
+      <div class="card-label">First Pass Yield</div>
+      <div class="card-val" style="color:${fpyCol}">${fpyPct!=null?fpyPct+'%':'—'}</div>
+      <div class="card-sub">First-time pass rate</div>
+    </div>
+    <div class="card ${top?'warn':''}">
+      <div class="card-label">Top Defect</div>
+      <div class="card-val" style="font-size:16px;color:var(--orange)">${top?top.code:'—'}</div>
+      <div class="card-sub">${top?top.issue+' · '+top.count+' occurrences':'No defects logged'}</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Unique Codes</div>
+      <div class="card-val">${sorted.length}</div>
+      <div class="card-sub">Defect codes logged</div>
+    </div>`;
 
-  el.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Line</th><th>Runs</th><th>Products</th><th>Target</th>
-          <th>QC Pass</th><th>Dispatched</th><th>Retail</th><th>Ecom</th><th>Done %</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${lines.map(line => {
-          const d = byLine[line];
-          const pct = d.target > 0 ? Math.round((d.dispatched / d.target) * 100) : 0;
-          const pctColor = pct >= 90 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : pct > 0 ? 'var(--orange)' : 'var(--t3)';
-          return `<tr>
-            <td style="color:var(--yellow);font-weight:700">${line}</td>
-            <td class="td-mono">${d.runs}</td>
-            <td style="font-size:11px;color:var(--t2)">${[...d.products].join(', ') || '—'}</td>
-            <td class="td-mono">${fmt(d.target)}</td>
-            <td class="td-mono" style="color:var(--green)">${fmt(d.pass)}</td>
-            <td class="td-mono" style="color:var(--text)">${fmt(d.dispatched)}</td>
-            <td class="td-mono" style="color:#a78bfa">${fmt(d.rtr)}</td>
-            <td class="td-mono" style="color:#38bdf8">${fmt(d.rte)}</td>
-            <td class="td-mono" style="color:${pctColor};font-weight:700">${pct}%</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
-  `;
+  // Bar chart — top 8 defect codes
+  const top8 = sorted.slice(0,8);
+  if (rptDefChartInst) rptDefChartInst.destroy();
+  const ctx = document.getElementById('rptDefChart')?.getContext('2d');
+  if (ctx && top8.length) {
+    const colors = top8.map(d => {
+      const cat=(d.category||'').toLowerCase();
+      return cat.includes('functional')?'rgba(245,158,11,.75)':cat.includes('visual')?'rgba(56,189,248,.75)':'rgba(107,114,128,.75)';
+    });
+    rptDefChartInst = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: top8.map(d=>d.code),
+        datasets: [{ data:top8.map(d=>d.count), backgroundColor:colors, borderRadius:3 }]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins: {
+          legend: {display:false},
+          tooltip: { backgroundColor:'#151515', borderColor:'#2a2a2a', borderWidth:1,
+            titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'},
+            callbacks: { title:items=>top8[items[0].dataIndex]?.issue||items[0].label, label:c=>c.raw+' occurrences' }
+          }
+        },
+        scales: {
+          x: { ticks:{color:'#999',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#181818'} },
+          y: { ticks:{color:'#666',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#181818'}, beginAtZero:true }
+        }
+      }
+    });
+  }
+  renderRptDefTable();
+}
+
+function renderRptDefTable() {
+  const qc = rptData.qc;
+  const el = document.getElementById('rptDefTable');
+  if (!qc) { el.innerHTML = '<div class="empty">No data</div>'; return; }
+
+  const heatmap = qc.heatmap||[];
+  const defAgg  = {};
+  heatmap.forEach(r => {
+    const c=r.defect_code;
+    if (!defAgg[c]) defAgg[c]={code:c,issue:r.issue,count:0,category:r.category||'',severity:r.severity||'—',prods:new Set()};
+    defAgg[c].count+=Number(r.defect_count)||0;
+    if (r.product) defAgg[c].prods.add(r.product);
+  });
+  const sorted = Object.values(defAgg).sort((a,b)=>b.count-a.count);
+
+  if (rptDefView === 'code') {
+    if (!sorted.length) { el.innerHTML = '<div class="empty">No defects logged</div>'; return; }
+    el.innerHTML = `<table><thead><tr><th>Code</th><th>Issue</th><th>Category</th><th>Severity</th><th>Products</th><th style="text-align:right">Count</th></tr></thead>
+      <tbody>${sorted.map(d=>`<tr>
+        <td style="font-family:var(--mono);color:var(--yellow);font-size:10px">${d.code}</td>
+        <td>${d.issue||'—'}</td>
+        <td style="font-size:11px;color:var(--t2)">${d.category}</td>
+        <td style="font-size:11px">${d.severity}</td>
+        <td style="font-size:11px;color:var(--t2)">${[...d.prods].sort().join(', ')||'—'}</td>
+        <td style="font-family:var(--mono);color:var(--red);text-align:right;font-weight:700">${d.count}</td>
+      </tr>`).join('')}</tbody></table>`;
+  } else {
+    const byProd = {};
+    heatmap.forEach(r => {
+      const p=r.product||'—';
+      if (!byProd[p]) byProd[p]={total:0,topCode:null,topCount:0};
+      const cnt=Number(r.defect_count)||0;
+      byProd[p].total+=cnt;
+      if (cnt>byProd[p].topCount) { byProd[p].topCount=cnt; byProd[p].topCode=r.defect_code+' — '+(r.issue||''); }
+    });
+    const prods = Object.keys(byProd).sort((a,b)=>byProd[b].total-byProd[a].total);
+    if (!prods.length) { el.innerHTML = '<div class="empty">No defects logged</div>'; return; }
+    el.innerHTML = `<table><thead><tr><th>Product</th><th>Total Failures</th><th>Top Defect</th></tr></thead>
+      <tbody>${prods.map(p=>`<tr>
+        <td>${p}</td>
+        <td style="font-family:var(--mono);color:var(--red);font-weight:700">${byProd[p].total}</td>
+        <td style="font-size:11px;color:var(--t2)">${byProd[p].topCode||'—'}</td>
+      </tr>`).join('')}</tbody></table>`;
+  }
+}
+
+// ══ DOWNLOADS ════════════════════════════════════════
+function renderRptDownloads() {
+  const el = document.getElementById('rptDlGrid');
+  const reports = [
+    { id:'production_summary', title:'Production Summary',   desc:'QC pass, dispatch, and completion % by product for selected period', icon:'📊' },
+    { id:'scan_activity',      title:'Scan Activity Log',    desc:'Full scan ledger — all activities with timestamps and operators',      icon:'📋' },
+    { id:'qc_defect_log',      title:'QC Defect Log',        desc:'All QC failures with defect codes, severity, and product',            icon:'🔍' },
+    { id:'dispatch_register',  title:'Dispatch Register',    desc:'All RTE + RTR dispatches with product, line, and channel',            icon:'🚚' },
+    { id:'operator_sessions',  title:'Operator Sessions',    desc:'Login/logout per device with shift attribution',                       icon:'👤' },
+    { id:'cycle_time',         title:'Cycle Time Report',    desc:'Average cycle times per stage for the selected period',               icon:'⏱' },
+    { id:'stock_ledger',       title:'Stock Ledger',         desc:'Current component stock positions across all products',               icon:'📦' },
+    { id:'grn_register',       title:'GRN Register',         desc:'All goods received — part code, quantity, supplier, date',            icon:'📥' },
+    { id:'issue_register',     title:'Issue Register',       desc:'All materials issued to production lines',                            icon:'📤' },
+    { id:'returns_log',        title:'Returns Log',          desc:'All customer and platform returns with category and disposition',     icon:'↩️' },
+  ];
+  el.innerHTML = reports.map(r => `
+    <div class="rpt-dl-card">
+      <div class="rpt-dl-icon">${r.icon}</div>
+      <div class="rpt-dl-title">${r.title}</div>
+      <div class="rpt-dl-desc">${r.desc}</div>
+      <button class="rpt-dl-btn" onclick="downloadRptReport('${r.id}', this)">↓ DOWNLOAD CSV</button>
+    </div>`).join('');
+}
+
+async function downloadRptReport(reportId, btn) {
+  const orig = btn.textContent;
+  btn.textContent = 'Fetching...'; btn.disabled = true;
+  const from = getRptFrom(), to = getRptTo();
+
+  try {
+    let rows = [], headers = [], filename = '';
+
+    if (reportId === 'production_summary') {
+      const res = await api('getPlanVsActual', {from,to});
+      rows = res.ok ? res.data : [];
+      headers = ['run_date','run_no','product','line_no','target_qty','actual_qc_pass','actual_rtr','actual_rte','total_dispatched','completion_pct'];
+      filename = 'production_summary';
+
+    } else if (reportId === 'scan_activity') {
+      const res = await api('getAllScans', {from,to});
+      rows = res.ok ? res.data : [];
+      headers = ['timestamp','upc','activity','line','station','loop_count','voided','batch_label'];
+      filename = 'scan_activity';
+
+    } else if (reportId === 'qc_defect_log') {
+      const res = await api('getQCView', {from,to});
+      rows = (res.ok ? res.data?.heatmap : null) || [];
+      headers = ['defect_code','issue','category','severity','product','defect_count'];
+      filename = 'qc_defect_log';
+
+    } else if (reportId === 'dispatch_register') {
+      const res = await api('getPkgScans', {from,to});
+      rows = res.ok ? res.data : [];
+      headers = ['packed_at','batch_label','car_upc','remote_upc','channel','line'];
+      filename = 'dispatch_register';
+
+    } else if (reportId === 'operator_sessions') {
+      const res = await api('getOperatorSessions', {from,to});
+      rows = res.ok ? res.data : [];
+      headers = ['login_at','logout_at','station','line','shift'];
+      filename = 'operator_sessions';
+
+    } else if (reportId === 'cycle_time') {
+      const res = await api('getCycleTimeSummary', {from,to});
+      const d = res.ok ? res.data : null;
+      const flat = ct => ct ? {avg_mins:ct.avg_mins_all,median_mins:ct.median_mins,fastest_mins:ct.fastest_mins,slowest_mins:ct.slowest_normal_mins,units_measured:ct.units_measured,outliers:ct.outlier_count} : {};
+      rows = d ? [
+        {stage:'QC Cycle',  segment:'INW → QC',           ...flat(d.qc)},
+        {stage:'PKG Cycle', segment:'QC Pass → Packaging', ...flat(d.pkg)},
+        {stage:'RTD Cycle', segment:'PKG → Dispatch',      ...flat(d.rtd)},
+      ] : [];
+      headers = ['stage','segment','avg_mins','median_mins','fastest_mins','slowest_mins','units_measured','outliers'];
+      filename = 'cycle_time_report';
+
+    } else if (reportId === 'stock_ledger') {
+      const res = await api('getStock');
+      rows = res.ok ? res.data : [];
+      headers = ['part_code','product','part_name','category','closing_stock','opening_stock','total_received','total_issued','reorder_level'];
+      filename = 'stock_ledger';
+
+    } else if (reportId === 'grn_register') {
+      const res = await api('getGRN');
+      rows = res.ok ? res.data : [];
+      headers = ['grn_no','grn_date','product','part_code','part_name','qty_ordered','qty_received','qty_rejected','supplier','po_reference','inspection'];
+      filename = 'grn_register';
+
+    } else if (reportId === 'issue_register') {
+      const res = await api('getIssues');
+      rows = res.ok ? res.data : [];
+      headers = ['issue_no','issue_date','issue_type','product','variant','part_code','part_name','bom_qty','units_planned','actual_issued','line_no','shift'];
+      filename = 'issue_register';
+
+    } else if (reportId === 'returns_log') {
+      const res = await api('getReturnQueue');
+      rows = res.ok ? res.data : [];
+      headers = ['return_unit_id','product','return_category','action','car_upc','handed_off_at'];
+      filename = 'returns_log';
+    }
+
+    if (!rows.length) {
+      btn.textContent = 'No data'; setTimeout(()=>{btn.textContent=orig;btn.disabled=false;},1500); return;
+    }
+    exportCSV(rows, headers, filename+'_'+from+'_to_'+to+'.csv');
+  } catch(e) {
+    btn.textContent = 'Error'; console.error(e);
+  } finally {
+    setTimeout(()=>{btn.textContent=orig;btn.disabled=false;}, 1500);
+  }
+}
+
+function exportCSV(rows, headers, filename) {
+  if (!rows.length) return;
+  const esc = v => { if (v==null) return ''; const s=String(v); return (s.includes(',')||s.includes('"')||s.includes('\n'))?'"'+s.replace(/"/g,'""')+'"':s; };
+  const csv = [headers.join(','), ...rows.map(r=>headers.map(h=>esc(r[h])).join(','))].join('\n');
+  const a   = Object.assign(document.createElement('a'), {href:URL.createObjectURL(new Blob([csv],{type:'text/csv'})), download:filename});
+  a.click(); URL.revokeObjectURL(a.href);
 }
 
 document.getElementById('returnsActionModal').addEventListener('click', function(e) {
