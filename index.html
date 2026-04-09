@@ -1420,7 +1420,7 @@ function toggleNavGroup(e, group) {
 
 function selectNavTab(tab) {
   closeAllDropdowns();
-  switchTab(tab);
+  switchTab(tab, true); // force full load on manual navigation
 }
 
 // Close dropdowns when clicking outside
@@ -1428,7 +1428,7 @@ document.addEventListener('click', function(e) {
   if (!e.target.closest('.nav-group')) closeAllDropdowns();
 });
 
-function switchTab(tab) {
+function switchTab(tab, force = false) {
   activeTab = tab;
   // Update dropdown item active states
   document.querySelectorAll('.nav-dropdown-item').forEach(item => {
@@ -1451,7 +1451,7 @@ function switchTab(tab) {
     document.getElementById('dateToLabel').style.display = isRange ? '' : 'none';
     document.getElementById('dateTo').style.display      = isRange ? '' : 'none';
   }
-  loadTab(tab);
+  loadTab(tab, force);
   setTimeout(setContentHeight, 0);
 }
 
@@ -1480,14 +1480,21 @@ function startRefresh() {
   }, REFRESH);
 }
 
-async function loadTab(tab) {
+let lastFullLoad = {};
+async function loadTab(tab, forceRefresh = false) {
   if (isRefreshing) return;
+  // Reporting tab: skip auto-refresh — data is historical, user controls it manually
+  if (tab === 'reporting' && !forceRefresh) return;
   isRefreshing = true;
   document.getElementById('refreshDot').className = 'refresh-indicator stale';
   try {
     const from = getDateFrom(), to = getDateTo();
     if (tab === 'exec')        await loadExec(to);
-    if (tab === 'lines')       await loadLines();
+    if (tab === 'lines') {
+      const isAutoRefresh = !forceRefresh;
+      // On auto-refresh, skip takt (expensive, historical) — only load on manual/first load
+      await loadLines(isAutoRefresh);
+    }
     if (tab === 'qc')          await loadQC(todayStr(), todayStr());
     if (tab === 'upc')         await loadUpcGen();
     if (tab === 'scans')       await loadScans();
@@ -2121,12 +2128,11 @@ function renderExecRuns(runs, date) {
 }
 
 // ── LINES VIEW ───────────────────────────────────────────────
-async function loadLines() {
+async function loadLines(skipTakt = false) {
   const today = todayStr();
-  const [data, taktRes] = await Promise.all([
-    api('getLineView', { date: today }),
-    api('getTaktTime', { from: today, to: today }),
-  ]);
+  const fetches = [api('getLineView', { date: today })];
+  if (!skipTakt) fetches.push(api('getTaktTime', { from: today, to: today }));
+  const [data, taktRes] = await Promise.all(fetches);
   if (!data.ok) return;
   const crMap = {};
   (data.data.car_remote || []).forEach(r => {
@@ -2134,7 +2140,7 @@ async function loadLines() {
   });
   renderLineCards(data.data.lines || [], crMap);
   renderOperatorTable(data.data.operator_stats || []);
-  renderLineTakt(taktRes.ok ? (taktRes.data.takt||[]) : []);
+  if (!skipTakt && taktRes?.ok) renderLineTakt(taktRes.data.takt || []);
 }
 
 function renderLineCards(lines, crMap) {
