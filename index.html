@@ -1015,7 +1015,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <!-- CYCLE TIME SECTION -->
     <div id="rpt-cycletime" class="rpt-section-content" style="display:none">
       <div class="cards" id="rptCtCards"><div class="loading"><div class="spinner"></div></div></div>
-      <div class="rpt-chart-wrap" style="height:110px"><canvas id="rptCtChart"></canvas></div>
+      <div class="rpt-chart-wrap" style="height:130px"><canvas id="rptCtChart"></canvas></div>
       <div class="ct-panels" id="rptCtPanels"></div>
     </div>
 
@@ -3897,7 +3897,11 @@ function renderRptProduction() {
           legend:  { labels:{ color:'#999', font:{family:'JetBrains Mono',size:10} } },
           tooltip: { backgroundColor:'#151515', borderColor:'#2a2a2a', borderWidth:1,
                      titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'} },
-          datalabels: { display: false }
+          datalabels: {
+            anchor:'end', align:'top',
+            color:'#888', font:{family:'JetBrains Mono',size:9,weight:'bold'},
+            formatter: v => v > 0 ? v.toLocaleString('en-IN') : '',
+          }
         },
         scales: {
           x: { ticks:{color:'#666',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#181818'} },
@@ -4032,7 +4036,9 @@ function renderRptCycleTime() {
             textAlign:'center',
             formatter: (v) => {
               if (!v || !ctTotal) return '';
-              return fmtMins(v) + '\n' + pct(v) + '%';
+              const p = pct(v);
+              const m = Math.round(Number(v));
+              return (m < 60 ? m+'m' : (v/60).toFixed(1)+'hr') + ' · ' + p + '%';
             },
           }
         }
@@ -4202,6 +4208,7 @@ function renderRptDefects() {
           datalabels: {
             display: c => c.dataset.data[c.dataIndex] > 0,
             color:'#fff', font:{family:'JetBrains Mono',size:11,weight:'bold'},
+            textAlign: 'center',
             formatter: (v) => v > 0 ? v + '\n(' + (totalFail>0?Math.round(v/totalFail*100):0) + '%)' : '',
           }
         }
