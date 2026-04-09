@@ -1470,6 +1470,22 @@ function setContentHeight() {
       el.style.maxHeight = h + 'px';
     }
   });
+  // Reporting tab: size the active section to fill the content area
+  const rptContent = document.getElementById('tab-reporting');
+  if (rptContent && rptContent.style.display !== 'none') {
+    const rptSections  = rptContent.querySelector('.rpt-sections');
+    const rptTimeBar   = rptContent.querySelector('.rpt-time-bar');
+    const rptSecH      = rptSections  ? rptSections.offsetHeight  : 0;
+    const rptTimeH     = rptTimeBar && rptTimeBar.style.display !== 'none' ? rptTimeBar.offsetHeight : 0;
+    const sectionH     = h - rptSecH - rptTimeH - 16;
+    document.querySelectorAll('.rpt-section-content').forEach(el => {
+      if (el.style.display !== 'none') {
+        el.style.height    = sectionH + 'px';
+        el.style.maxHeight = sectionH + 'px';
+        el.style.overflowY = 'auto';
+      }
+    });
+  }
 }
 window.addEventListener('resize', setContentHeight);
 
