@@ -114,18 +114,39 @@ body::after{
 }
 .tb-logout:hover{color:var(--text);border-color:var(--b3)}
 
-/* ── TABS ── */
-.tabs{
+/* ── NAV GROUPS ── */
+.nav-groups{
   display:flex;background:var(--s1);border-bottom:1px solid var(--b1);
-  flex-shrink:0;padding:0 20px;gap:0;
+  flex-shrink:0;padding:0 20px;gap:0;position:relative;z-index:40;
 }
-.tab{
-  padding:10px 20px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+.nav-group{position:relative}
+.nav-group-btn{
+  padding:10px 22px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;
   font-weight:600;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;
+  border-top:none;border-left:none;border-right:none;
   transition:all .15s;position:relative;bottom:-1px;
+  display:flex;align-items:center;gap:7px;
+  background:none;font-family:var(--mono);white-space:nowrap;
 }
-.tab:hover{color:var(--t2)}
-.tab.active{color:var(--yellow);border-bottom-color:var(--yellow)}
+.nav-group-btn:hover{color:var(--t2)}
+.nav-group-btn.active{color:var(--yellow);border-bottom-color:var(--yellow)}
+.nav-chevron{font-size:7px;opacity:.5;transition:transform .15s}
+.nav-group-btn.open .nav-chevron{transform:rotate(180deg)}
+.nav-dropdown{
+  display:none;position:absolute;top:calc(100% + 1px);left:0;
+  background:var(--s2);border:1px solid var(--b2);
+  border-radius:0 0 6px 6px;min-width:170px;z-index:200;
+  box-shadow:0 12px 32px rgba(0,0,0,.5);
+}
+.nav-dropdown.show{display:block}
+.nav-dropdown-item{
+  padding:11px 18px;font-size:10px;letter-spacing:.15em;text-transform:uppercase;
+  font-weight:600;color:var(--t2);cursor:pointer;transition:all .12s;
+  display:flex;align-items:center;gap:6px;white-space:nowrap;border-bottom:1px solid var(--b1);
+}
+.nav-dropdown-item:last-child{border-bottom:none}
+.nav-dropdown-item:hover{background:var(--s3);color:var(--text)}
+.nav-dropdown-item.active{color:var(--yellow)}
 
 /* ── DATE BAR ── */
 .datebar{
@@ -586,19 +607,51 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     </div>
   </div>
 
-  <div class="tabs">
-    <div class="tab active" data-tab="exec" onclick="switchTab('exec')">Dashboard</div>
-    <div class="tab" data-tab="lines" onclick="switchTab('lines')">Lines</div>
-    <div class="tab" data-tab="qc" onclick="switchTab('qc')">QC</div>
+  <div class="nav-groups" id="navGroups">
 
-    <div class="tab" data-tab="upc" onclick="switchTab('upc')">UPC Generator</div>
-    <div class="tab" data-tab="scans" onclick="switchTab('scans')">Scans</div>
-    <div class="tab" data-tab="corrections" onclick="switchTab('corrections')">Corrections</div>
-    <div class="tab" data-tab="alerts" onclick="switchTab('alerts')">Alerts <span id="alertsBadge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle"></span></div>
-    <div class="tab" data-tab="returns" onclick="switchTab('returns')">Returns <span id="returnsBadge" style="display:none;background:var(--orange);color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle"></span></div>
-    <div class="tab" data-tab="reporting" onclick="switchTab('reporting')">Reporting</div>
-    <div class="tab" data-tab="operators" onclick="switchTab('operators')">Operators</div>
-    <div class="tab" data-tab="print" onclick="switchTab('print')">Print</div>
+    <div class="nav-group" id="navg-production">
+      <button class="nav-group-btn active" onclick="toggleNavGroup(event,'production')">
+        Production <span class="nav-chevron">▼</span>
+      </button>
+      <div class="nav-dropdown" id="navd-production">
+        <div class="nav-dropdown-item active" data-tab="exec"  onclick="selectNavTab('exec')">Dashboard</div>
+        <div class="nav-dropdown-item"        data-tab="lines" onclick="selectNavTab('lines')">Lines</div>
+        <div class="nav-dropdown-item"        data-tab="qc"    onclick="selectNavTab('qc')">QC</div>
+      </div>
+    </div>
+
+    <div class="nav-group" id="navg-activity">
+      <button class="nav-group-btn" onclick="toggleNavGroup(event,'activity')">
+        Activity <span class="nav-chevron">▼</span>
+      </button>
+      <div class="nav-dropdown" id="navd-activity">
+        <div class="nav-dropdown-item" data-tab="scans"       onclick="selectNavTab('scans')">Scans</div>
+        <div class="nav-dropdown-item" data-tab="corrections" onclick="selectNavTab('corrections')">Corrections</div>
+        <div class="nav-dropdown-item" data-tab="alerts"      onclick="selectNavTab('alerts')">Alerts <span id="alertsBadge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;vertical-align:middle"></span></div>
+        <div class="nav-dropdown-item" data-tab="returns"     onclick="selectNavTab('returns')">Returns <span id="returnsBadge" style="display:none;background:var(--orange);color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;vertical-align:middle"></span></div>
+      </div>
+    </div>
+
+    <div class="nav-group" id="navg-reporting">
+      <button class="nav-group-btn" onclick="toggleNavGroup(event,'reporting')">
+        Reporting <span class="nav-chevron">▼</span>
+      </button>
+      <div class="nav-dropdown" id="navd-reporting">
+        <div class="nav-dropdown-item" data-tab="reporting" onclick="selectNavTab('reporting')">Reporting</div>
+      </div>
+    </div>
+
+    <div class="nav-group" id="navg-admin">
+      <button class="nav-group-btn" onclick="toggleNavGroup(event,'admin')">
+        Admin <span class="nav-chevron">▼</span>
+      </button>
+      <div class="nav-dropdown" id="navd-admin">
+        <div class="nav-dropdown-item" data-tab="upc"       onclick="selectNavTab('upc')">UPC Generator</div>
+        <div class="nav-dropdown-item" data-tab="operators" onclick="selectNavTab('operators')">Operators</div>
+        <div class="nav-dropdown-item" data-tab="print"     onclick="selectNavTab('print')">Print</div>
+      </div>
+    </div>
+
   </div>
 
   <div class="datebar">
@@ -1249,13 +1302,57 @@ function updateClock() {
 }
 
 // ── TABS ─────────────────────────────────────────────────────
+// ── NAV GROUP LOGIC ───────────────────────────────────────────
+const NAV_GROUPS = {
+  production: ['exec','lines','qc'],
+  activity:   ['scans','corrections','alerts','returns'],
+  reporting:  ['reporting'],
+  admin:      ['upc','operators','print'],
+};
+
+function closeAllDropdowns() {
+  document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('show'));
+  document.querySelectorAll('.nav-group-btn').forEach(b => b.classList.remove('open'));
+}
+
+function toggleNavGroup(e, group) {
+  e.stopPropagation();
+  const dropdown = document.getElementById('navd-' + group);
+  const btn      = document.querySelector('#navg-' + group + ' .nav-group-btn');
+  const isOpen   = dropdown.classList.contains('show');
+  closeAllDropdowns();
+  if (!isOpen) {
+    dropdown.classList.add('show');
+    btn.classList.add('open');
+  }
+}
+
+function selectNavTab(tab) {
+  closeAllDropdowns();
+  switchTab(tab);
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.nav-group')) closeAllDropdowns();
+});
+
 function switchTab(tab) {
   activeTab = tab;
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  // Update dropdown item active states
+  document.querySelectorAll('.nav-dropdown-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.tab === tab);
+  });
+  // Update group button active states
+  Object.entries(NAV_GROUPS).forEach(([group, tabs]) => {
+    const btn = document.querySelector('#navg-' + group + ' .nav-group-btn');
+    if (btn) btn.classList.toggle('active', tabs.includes(tab));
+  });
+  // Show/hide content panels
   ['exec','lines','qc','upc','scans','corrections','alerts','returns','reporting','operators','print'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
-  // Only Executive has the shared date bar
+  // Datebar — exec tab only
   const showDateBar = tab === 'exec';
   document.querySelector('.datebar').style.display = showDateBar ? '' : 'none';
   if (showDateBar) {
@@ -1270,12 +1367,12 @@ function switchTab(tab) {
 // ── CONTENT HEIGHT (scroll fix) ───────────────────────────────
 function setContentHeight() {
   const topbar  = document.querySelector('.topbar');
-  const tabs    = document.querySelector('.tabs');
+  const navBar  = document.querySelector('.nav-groups');
   const datebar = document.querySelector('.datebar');
   const topbarH  = topbar  ? topbar.offsetHeight  : 0;
-  const tabsH    = tabs    ? tabs.offsetHeight    : 0;
+  const navBarH  = navBar  ? navBar.offsetHeight  : 0;
   const datebarH = (datebar && datebar.style.display !== 'none') ? datebar.offsetHeight : 0;
-  const h = window.innerHeight - topbarH - tabsH - datebarH;
+  const h = window.innerHeight - topbarH - navBarH - datebarH;
   document.querySelectorAll('.content').forEach(el => {
     if (el.style.display !== 'none') {
       el.style.height    = h + 'px';
