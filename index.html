@@ -1044,11 +1044,13 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <!-- THROUGHPUT SECTION -->
     <div id="rpt-throughput" class="rpt-section-content" style="display:none">
       <div class="cards" id="rptTaktCards"><div class="loading"><div class="spinner"></div></div></div>
-      <div class="rpt-chart-wrap" style="height:260px"><canvas id="rptTaktChart"></canvas></div>
+      <div id="rptTaktBottleneck"><div class="loading"><div class="spinner"></div></div></div>
       <div class="sec-label">Station Takt by Line</div>
       <div class="table-wrap" id="rptTaktTable"><div class="loading"><div class="spinner"></div></div></div>
       <div class="sec-label" style="margin-top:8px">First Unit Timeline — Line Warm-up</div>
-      <div class="table-wrap" id="rptTimelineTable"><div class="loading"><div class="spinner"></div></div></div>
+      <div class="table-wrap" style="max-height:320px;overflow-y:auto" id="rptTimelineTable"><div class="loading"><div class="spinner"></div></div></div>
+      <div class="sec-label" style="margin-top:8px">Takt by Run</div>
+      <div class="table-wrap" style="max-height:380px;overflow-y:auto" id="rptByRunTable"><div class="loading"><div class="spinner"></div></div></div>
     </div>
 
     <!-- DOWNLOADS SECTION -->
@@ -4379,9 +4381,10 @@ async function renderRptThroughput() {
   const timeline = res.data.timeline || [];
 
   renderTaktCards(takt);
-  renderTaktChart(takt);
+  renderTaktBottleneck(takt);
   renderTaktTable(takt);
   renderTimelineTable(timeline);
+  renderByRunTable(res.data.by_run || []);
 }
 
 function renderTaktCards(takt) {
@@ -4399,10 +4402,11 @@ function renderTaktCards(takt) {
   const fR   = v => v ? (60/v).toFixed(1)+'/hr' : '—';
 
   const stations = [
-    {id:'INW',    label:'INW Takt',     sub:'Assembly pace'},
-    {id:'QC',     label:'QC Takt',      sub:'QC decision pace'},
-    {id:'PKG',    label:'PKG Takt',     sub:'Packaging pace'},
-    {id:'PKG_OUT',label:'PKG_OUT Takt', sub:'Dispatch pace (shared)'},
+    {id:'INW',     label:'INW Takt',      sub:'Assembly pace'},
+    {id:'QC',      label:'QC Decision',   sub:'Pass + fail combined'},
+    {id:'QC_PASS', label:'QC Pass Takt',  sub:'Pass-only pace'},
+    {id:'PKG',     label:'PKG Takt',      sub:'Packaging pace'},
+    {id:'PKG_OUT', label:'PKG_OUT Takt',  sub:'Dispatch pace (shared)'},
   ];
 
   el.innerHTML = stations.map(s => {
@@ -4415,53 +4419,60 @@ function renderTaktCards(takt) {
   }).join('');
 }
 
-function renderTaktChart(takt) {
-  if (rptTaktChartInst) rptTaktChartInst.destroy();
-  const ctx = document.getElementById('rptTaktChart')?.getContext('2d');
-  if (!ctx || !takt.length) return;
+function renderTaktBottleneck(takt) {
+  const el = document.getElementById('rptTaktBottleneck');
+  if (!el) return;
 
-  const stations = ['INW','QC','PKG','PKG_OUT'];
-  const lines    = [...new Set(takt.map(r=>r.line))].sort();
-  const lineColors = {
-    'L1':'rgba(242,205,26,.75)', 'L2':'rgba(33,60,226,.75)',
-    'L3':'rgba(34,197,94,.75)', 'SHARED':'rgba(107,114,128,.7)',
-  };
-  const lookup = {};
-  takt.forEach(r => { lookup[r.station+'|'+r.line] = Number(r.avg_takt_mins)||0; });
+  const stations = ['INW','QC','PKG'];
+  const lines    = [...new Set(takt.filter(r => r.line !== 'SHARED' && stations.includes(r.station)).map(r => r.line))].sort();
+  const lookup   = {};
+  takt.forEach(r => { lookup[r.station+'|'+r.line] = r; });
+  const pkgout   = takt.find(r => r.station === 'PKG_OUT' && r.line === 'SHARED');
 
-  rptTaktChartInst = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: stations,
-      datasets: lines.map(l => ({
-        label: l,
-        data: stations.map(s => lookup[s+'|'+l] || null),
-        backgroundColor: lineColors[l] || 'rgba(153,153,153,.7)',
-        borderRadius: 3,
-      })),
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false,
-      layout: { padding:{ top:20 } },
-      plugins: {
-        legend: { labels:{ color:'#999', font:{family:'JetBrains Mono',size:10}, boxWidth:10 } },
-        tooltip: { backgroundColor:'#151515', borderColor:'#2a2a2a', borderWidth:1,
-          titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'},
-          callbacks: { label: c => ` ${c.dataset.label}: ${c.raw ? c.raw.toFixed(1)+' min/unit ('+( 60/c.raw).toFixed(1)+'/hr)' : '—'}` }
-        },
-        datalabels: {
-          anchor:'end', align:'top', color:'#888',
-          font:{family:'JetBrains Mono',size:9,weight:'bold'},
-          formatter: v => v ? v.toFixed(1) : '',
-        }
-      },
-      scales: {
-        x: { ticks:{color:'#999',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#181818'} },
-        y: { ticks:{color:'#666',font:{family:'JetBrains Mono',size:10},callback:v=>v+'m'}, grid:{color:'#181818'}, beginAtZero:true,
-             title:{display:true,text:'min / unit',color:'#555',font:{family:'JetBrains Mono',size:9}} }
-      }
-    }
-  });
+  if (!lines.length) { el.innerHTML = '<div class="empty">No data</div>'; return; }
+
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:12px">
+    ${lines.map(line => {
+      const rows = stations.map(st => ({station:st, r:lookup[st+'|'+line]})).filter(x => x.r && x.r.units_per_hour);
+      if (!rows.length) return '';
+      const uphs  = rows.map(x => Number(x.r.units_per_hour));
+      const maxUPH = Math.max(...uphs);
+      const minUPH = Math.min(...uphs);
+      return `<div style="background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:16px">
+        <div style="font-family:var(--head);font-weight:700;font-size:13px;color:var(--yellow);margin-bottom:14px;letter-spacing:.08em">${line}</div>
+        ${rows.map(({station, r}) => {
+          const uph    = Number(r.units_per_hour);
+          const takt   = Number(r.avg_takt_mins);
+          const pct    = Math.round((uph / maxUPH) * 100);
+          const isBot  = uph === minUPH && rows.length > 1;
+          const isBest = uph === maxUPH;
+          const col    = isBot ? 'var(--red)' : isBest ? 'var(--green)' : 'var(--yellow)';
+          const badge  = isBot
+            ? `<span style="font-size:8px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;border-radius:3px;background:rgba(222,42,42,.15);color:var(--red);border:1px solid rgba(222,42,42,.3);margin-left:8px">BOTTLENECK</span>`
+            : '';
+          return `<div style="display:grid;grid-template-columns:100px 1fr 200px;gap:12px;align-items:center;margin-bottom:10px">
+            <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--t2);display:flex;align-items:center">${station}${badge}</div>
+            <div style="background:var(--b1);border-radius:3px;height:20px;overflow:hidden">
+              <div style="width:${pct}%;height:100%;background:${col};border-radius:3px;transition:width .6s ease"></div>
+            </div>
+            <div style="font-family:var(--mono);font-size:11px;display:flex;align-items:center;gap:10px">
+              <span style="font-weight:700;color:${col}">${takt.toFixed(1)} min</span>
+              <span style="color:var(--t3)">·</span>
+              <span style="color:var(--t2)">${uph.toFixed(1)}/hr</span>
+              <span style="color:var(--t3);font-size:10px">${r.units_measured} units</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('')}
+    ${pkgout ? `<div style="background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:14px;display:flex;align-items:center;gap:20px">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--t2);letter-spacing:.1em;min-width:80px">PKG_OUT</div>
+      <div style="font-size:9px;color:var(--t3);letter-spacing:.1em;text-transform:uppercase">Shared</div>
+      <div style="font-family:var(--mono);font-weight:700;color:var(--green)">${Number(pkgout.avg_takt_mins).toFixed(1)} min/unit</div>
+      <div style="font-family:var(--mono);color:var(--t3)">${Number(pkgout.units_per_hour).toFixed(1)}/hr</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--t3)">${pkgout.units_measured} units</div>
+    </div>` : ''}
+  </div>`;
 }
 
 function renderTaktTable(takt) {
@@ -4551,6 +4562,54 @@ function renderTimelineTable(timeline) {
         <td style="text-align:center">${gap(r.pkg_to_out_mins)}<div style="font-size:10px;color:var(--t3)">${fmtIST(r.first_pkgout)}</div></td>
         <td style="text-align:center">${warmup(r.total_warmup_mins)}</td>
       </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function renderByRunTable(byRun) {
+  const el = document.getElementById('rptByRunTable');
+  if (!el) return;
+  if (!byRun.length) { el.innerHTML = '<div class="empty">No run data for period</div>'; return; }
+
+  // Group rows by run: date + line + run_no
+  const runs = {};
+  byRun.forEach(r => {
+    const key = r.run_date + '|' + r.line + '|' + r.run_no;
+    if (!runs[key]) runs[key] = { run_date:r.run_date, line:r.line, product:r.product, run_no:r.run_no, s:{} };
+    runs[key].s[r.station] = r;
+  });
+
+  const tCol = v => !v ? 'var(--t3)' : Number(v)<=5 ? 'var(--green)' : Number(v)<=10 ? 'var(--yellow)' : 'var(--red)';
+  const cell = r => r && r.avg_takt_mins
+    ? `<div style="font-family:var(--mono);font-weight:700;color:${tCol(r.avg_takt_mins)}">${Number(r.avg_takt_mins).toFixed(1)} min</div>
+       <div style="font-size:10px;color:var(--t3)">${Number(r.units_per_hour).toFixed(1)}/hr · ${r.units_measured}u</div>`
+    : '<div style="color:var(--t3);font-size:11px">—</div>';
+
+  const fmtDate = d => {
+    if (!d) return '—';
+    const [,m,day] = d.split('-');
+    return day + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1];
+  };
+
+  const sorted = Object.values(runs).sort((a,b) =>
+    b.run_date.localeCompare(a.run_date) || a.line.localeCompare(b.line));
+
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Date</th><th>Line</th><th>Run</th><th>Product</th>
+      <th style="text-align:center">INW</th>
+      <th style="text-align:center">QC</th>
+      <th style="text-align:center">PKG</th>
+    </tr></thead>
+    <tbody>${sorted.map(r => `<tr>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--t2)">${fmtDate(r.run_date)}</td>
+      <td style="color:var(--yellow);font-weight:700">${r.line}</td>
+      <td style="font-family:var(--mono);font-size:10px">${r.run_no}</td>
+      <td style="color:var(--t2)">${r.product}</td>
+      <td style="text-align:center;padding:8px 12px">${cell(r.s['INW'])}</td>
+      <td style="text-align:center;padding:8px 12px">${cell(r.s['QC'])}</td>
+      <td style="text-align:center;padding:8px 12px">${cell(r.s['PKG'])}</td>
+    </tr>`).join('')}
     </tbody>
   </table>`;
 }
