@@ -3720,6 +3720,9 @@ async function submitReturnsAction(outcome) {
 // REPORTING v2
 // ══════════════════════════════════════════════════════
 
+// Register datalabels plugin globally for all reporting charts
+if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
+
 let rptSection      = 'production';
 let rptPreset       = '10days';
 let rptProdView     = 'product';
@@ -3894,11 +3897,7 @@ function renderRptProduction() {
           legend:  { labels:{ color:'#999', font:{family:'JetBrains Mono',size:10} } },
           tooltip: { backgroundColor:'#151515', borderColor:'#2a2a2a', borderWidth:1,
                      titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'} },
-          datalabels: {
-            anchor:'end', align:'top',
-            color:'#666', font:{family:'JetBrains Mono',size:9},
-            formatter: v => v > 0 ? v.toLocaleString('en-IN') : '',
-          }
+          datalabels: { display: false }
         },
         scales: {
           x: { ticks:{color:'#666',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#181818'} },
@@ -4203,7 +4202,7 @@ function renderRptDefects() {
           datalabels: {
             display: c => c.dataset.data[c.dataIndex] > 0,
             color:'#fff', font:{family:'JetBrains Mono',size:11,weight:'bold'},
-            formatter: (v) => v > 0 ? v : '',
+            formatter: (v) => v > 0 ? v + '\n(' + (totalFail>0?Math.round(v/totalFail*100):0) + '%)' : '',
           }
         }
       }
