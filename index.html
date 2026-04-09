@@ -4015,7 +4015,7 @@ function renderRptCycleTime() {
       options: {
         indexAxis: 'y', responsive:true, maintainAspectRatio:false,
         scales: {
-          x: { stacked:true, ticks:{color:'#666',font:{family:'JetBrains Mono',size:10},callback:v=>fmtMins(v)}, grid:{color:'#181818'}, beginAtZero:true },
+          x: { stacked:true, max:ctTotal, ticks:{color:'#666',font:{family:'JetBrains Mono',size:10},callback:v=>fmtMins(v)}, grid:{color:'#181818'}, beginAtZero:true },
           y: { stacked:true, ticks:{display:false}, grid:{display:false} }
         },
         plugins: {
@@ -4026,15 +4026,15 @@ function renderRptCycleTime() {
             callbacks: { label: c => ` ${c.dataset.label}: ${fmtMins(c.raw)} (${pct(c.raw)}% of total)` }
           },
           datalabels: {
-            display: ctx => ctx.raw > 0,
+            display: c => c.dataset.data[c.dataIndex] > 0,
             anchor:'center', align:'center',
-            color:'#000', font:{family:'JetBrains Mono',size:10,weight:'bold'},
-            formatter: (v, ctx) => {
-              if (!v) return '';
-              const p = pct(v);
-              return fmtMins(v) + (p >= 10 ? '\n' + p + '%' : '');
-            },
+            color: (c) => c.datasetIndex === 0 ? '#000' : '#fff',
+            font:{family:'JetBrains Mono',size:11,weight:'bold'},
             textAlign:'center',
+            formatter: (v) => {
+              if (!v || !ctTotal) return '';
+              return fmtMins(v) + '\n' + pct(v) + '%';
+            },
           }
         }
       }
