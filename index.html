@@ -6,6 +6,7 @@
 <title>LOT — Production Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Tomorrow:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <style>
 :root {
   --yellow: #F2CD1A;
@@ -1014,14 +1015,17 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <!-- CYCLE TIME SECTION -->
     <div id="rpt-cycletime" class="rpt-section-content" style="display:none">
       <div class="cards" id="rptCtCards"><div class="loading"><div class="spinner"></div></div></div>
-      <div class="rpt-chart-wrap"><canvas id="rptCtChart"></canvas></div>
+      <div class="rpt-chart-wrap" style="height:110px"><canvas id="rptCtChart"></canvas></div>
       <div class="ct-panels" id="rptCtPanels"></div>
     </div>
 
     <!-- DEFECTS SECTION -->
     <div id="rpt-defects" class="rpt-section-content" style="display:none">
       <div class="cards" id="rptDefCards"><div class="loading"><div class="spinner"></div></div></div>
-      <div class="rpt-chart-wrap"><canvas id="rptDefChart"></canvas></div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px">
+        <div class="rpt-chart-wrap"><canvas id="rptDefChart"></canvas></div>
+        <div class="rpt-chart-wrap"><canvas id="rptDefSevChart"></canvas></div>
+      </div>
       <div class="rpt-breakdown-header">
         <div class="sec-label" style="flex:1;margin-bottom:0">Breakdown</div>
         <div class="rpt-toggle">
@@ -3889,7 +3893,12 @@ function renderRptProduction() {
         plugins: {
           legend:  { labels:{ color:'#999', font:{family:'JetBrains Mono',size:10} } },
           tooltip: { backgroundColor:'#151515', borderColor:'#2a2a2a', borderWidth:1,
-                     titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'} }
+                     titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'} },
+          datalabels: {
+            anchor:'end', align:'top',
+            color:'#666', font:{family:'JetBrains Mono',size:9},
+            formatter: v => v > 0 ? v.toLocaleString('en-IN') : '',
+          }
         },
         scales: {
           x: { ticks:{color:'#666',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#181818'} },
@@ -3987,36 +3996,46 @@ function renderRptCycleTime() {
       <div class="card-sub">PKG → Dispatch · ${fmt(ct.rtd?.units_measured||0)} units</div>
     </div>`;
 
-  // Bar chart comparing three stages
+  // Single stacked bar — QC + PKG + RTD as segments
   if (rptCtChartInst) rptCtChartInst.destroy();
   const ctx = document.getElementById('rptCtChart')?.getContext('2d');
-  if (ctx) {
+  const ctTotal = qcAvg + pkgAvg + rtdAvg;
+  if (ctx && ctTotal > 0) {
+    const pct = v => ctTotal > 0 ? Math.round(v/ctTotal*100) : 0;
     rptCtChartInst = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: ['QC Cycle  (INW → QC)', 'PKG Cycle  (QC Pass → PKG)', 'RTD Cycle  (PKG → Dispatch)'],
-        datasets: [{
-          data: [qcAvg, pkgAvg, rtdAvg],
-          backgroundColor: [
-            qcAvg  <= 30 ? 'rgba(34,197,94,.7)'  : qcAvg  <= 60 ? 'rgba(242,205,26,.7)' : 'rgba(222,42,42,.7)',
-            pkgAvg <= 30 ? 'rgba(34,197,94,.7)'  : pkgAvg <= 60 ? 'rgba(242,205,26,.7)' : 'rgba(222,42,42,.7)',
-            rtdAvg <= 30 ? 'rgba(34,197,94,.7)'  : rtdAvg <= 60 ? 'rgba(242,205,26,.7)' : 'rgba(222,42,42,.7)',
-          ],
-          borderRadius: 4,
-        }]
+        labels: [''],
+        datasets: [
+          { label:'QC Cycle',  data:[qcAvg],  backgroundColor:'rgba(242,205,26,.85)', borderRadius:{topLeft:4,bottomLeft:4} },
+          { label:'PKG Cycle', data:[pkgAvg], backgroundColor:'rgba(34,197,94,.85)'  },
+          { label:'RTD Cycle', data:[rtdAvg], backgroundColor:'rgba(56,189,248,.85)', borderRadius:{topRight:4,bottomRight:4} },
+        ]
       },
       options: {
         indexAxis: 'y', responsive:true, maintainAspectRatio:false,
-        plugins: {
-          legend: {display:false},
-          tooltip: { backgroundColor:'#151515', borderColor:'#2a2a2a', borderWidth:1,
-            titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'},
-            callbacks: { label: c => fmtMins(c.raw) }
-          }
-        },
         scales: {
-          x: { ticks:{color:'#666',font:{family:'JetBrains Mono',size:10},callback:v=>fmtMins(v)}, grid:{color:'#181818'}, beginAtZero:true },
-          y: { ticks:{color:'#999',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#181818'} }
+          x: { stacked:true, ticks:{color:'#666',font:{family:'JetBrains Mono',size:10},callback:v=>fmtMins(v)}, grid:{color:'#181818'}, beginAtZero:true },
+          y: { stacked:true, ticks:{display:false}, grid:{display:false} }
+        },
+        plugins: {
+          legend: { labels:{ color:'#999', font:{family:'JetBrains Mono',size:10}, boxWidth:10 } },
+          tooltip: {
+            backgroundColor:'#151515', borderColor:'#2a2a2a', borderWidth:1,
+            titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'},
+            callbacks: { label: c => ` ${c.dataset.label}: ${fmtMins(c.raw)} (${pct(c.raw)}% of total)` }
+          },
+          datalabels: {
+            display: ctx => ctx.raw > 0,
+            anchor:'center', align:'center',
+            color:'#000', font:{family:'JetBrains Mono',size:10,weight:'bold'},
+            formatter: (v, ctx) => {
+              if (!v) return '';
+              const p = pct(v);
+              return fmtMins(v) + (p >= 10 ? '\n' + p + '%' : '');
+            },
+            textAlign:'center',
+          }
         }
       }
     });
@@ -4054,6 +4073,8 @@ function switchDefBreakdown(view) {
   renderRptDefTable();
 }
 
+let rptDefSevChartInst = null;
+
 function renderRptDefects() {
   const qc      = rptData.qc;
   const cardsEl = document.getElementById('rptDefCards');
@@ -4061,37 +4082,51 @@ function renderRptDefects() {
   if (!qc) {
     cardsEl.innerHTML = '<div class="empty">No defect data for period</div>';
     document.getElementById('rptDefTable').innerHTML = '<div class="empty">No data</div>';
-    if (rptDefChartInst) { rptDefChartInst.destroy(); rptDefChartInst = null; }
+    ['rptDefChartInst','rptDefSevChartInst'].forEach(n => { if (window[n]) { window[n].destroy(); window[n]=null; } });
     return;
   }
 
-  const heatmap = qc.heatmap || [];
-  const fpy     = qc.fpy     || [];
-  let totalInsp = 0, totalFail = 0;
-  fpy.forEach(r => { const i=Number(r.total_inspected)||0, p=Number(r.first_pass)||0; totalInsp+=i; totalFail+=(i-p); });
-  const fpyPct  = totalInsp > 0 ? ((totalInsp-totalFail)/totalInsp*100).toFixed(1) : null;
-  const fpyCol  = fpyPct>=95?'var(--green)':fpyPct>=85?'var(--yellow)':fpyPct!=null?'var(--red)':'var(--t3)';
+  const heatmap  = qc.heatmap           || [];
+  const fpyRows  = qc.fpy               || [];
+  const dbk      = qc.defect_breakdown  || [];
 
+  // ── FPY: use fpy_pct field directly ──────────────────
+  const fpyVals = fpyRows.map(r => Number(r.fpy_pct)).filter(v => v > 0 && !isNaN(v));
+  const fpyPct  = fpyVals.length > 0
+    ? (fpyVals.reduce((a,b)=>a+b,0) / fpyVals.length).toFixed(1)
+    : null;
+  const fpyCol  = fpyPct>=95?'var(--green)':fpyPct>=85?'var(--yellow)':fpyPct!=null?'var(--red)':'var(--t3)';
+  const fpyCls  = fpyPct>=95?'ok':fpyPct>=85?'warn':fpyPct!=null?'bad':'';
+
+  // ── Aggregate defects from heatmap ───────────────────
   const defAgg = {};
   heatmap.forEach(r => {
     const c = r.defect_code;
-    if (!defAgg[c]) defAgg[c]={code:c,issue:r.issue,count:0,category:r.category||'',severity:r.severity||'—',prods:new Set()};
+    if (!defAgg[c]) defAgg[c]={code:c,issue:r.issue,count:0,category:r.category||'',severity:r.severity||'Minor',prods:new Set()};
     defAgg[c].count+=Number(r.defect_count)||0;
     if (r.product) defAgg[c].prods.add(r.product);
   });
-  const sorted = Object.values(defAgg).sort((a,b)=>b.count-a.count);
-  const top    = sorted[0];
+  const sorted     = Object.values(defAgg).sort((a,b)=>b.count-a.count);
+  const totalFail  = sorted.reduce((s,d)=>s+d.count,0);
+  const top        = sorted[0];
+
+  // ── Severity aggregation ─────────────────────────────
+  const sevAgg = { Critical:0, Major:0, Minor:0 };
+  heatmap.forEach(r => {
+    const sev = r.severity || 'Minor';
+    sevAgg[sev] = (sevAgg[sev]||0) + (Number(r.defect_count)||0);
+  });
 
   cardsEl.innerHTML = `
     <div class="card ${totalFail>0?'bad':''}">
-      <div class="card-label">Total Failures</div>
+      <div class="card-label">Total Defect Occurrences</div>
       <div class="card-val" style="color:${totalFail>0?'var(--red)':''}">${fmt(totalFail)}</div>
-      <div class="card-sub">${fmt(totalInsp)} units inspected</div>
+      <div class="card-sub">${sevAgg.Critical} critical · ${sevAgg.Major} major · ${sevAgg.Minor} minor</div>
     </div>
-    <div class="card ${fpyPct>=95?'ok':fpyPct>=85?'warn':fpyPct!=null?'bad':''}">
+    <div class="card ${fpyCls}">
       <div class="card-label">First Pass Yield</div>
       <div class="card-val" style="color:${fpyCol}">${fpyPct!=null?fpyPct+'%':'—'}</div>
-      <div class="card-sub">First-time pass rate</div>
+      <div class="card-sub">Avg across lines &amp; days</div>
     </div>
     <div class="card ${top?'warn':''}">
       <div class="card-label">Top Defect</div>
@@ -4104,28 +4139,31 @@ function renderRptDefects() {
       <div class="card-sub">Defect codes logged</div>
     </div>`;
 
-  // Bar chart — top 8 defect codes
+  // ── Bar chart — top 8 defect codes with data labels ──
   const top8 = sorted.slice(0,8);
   if (rptDefChartInst) rptDefChartInst.destroy();
   const ctx = document.getElementById('rptDefChart')?.getContext('2d');
   if (ctx && top8.length) {
-    const colors = top8.map(d => {
-      const cat=(d.category||'').toLowerCase();
-      return cat.includes('functional')?'rgba(245,158,11,.75)':cat.includes('visual')?'rgba(56,189,248,.75)':'rgba(107,114,128,.75)';
-    });
+    const sevColor = sev => sev==='Critical'?'rgba(222,42,42,.8)':sev==='Major'?'rgba(245,158,11,.8)':'rgba(107,114,128,.7)';
     rptDefChartInst = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: top8.map(d=>d.code),
-        datasets: [{ data:top8.map(d=>d.count), backgroundColor:colors, borderRadius:3 }]
+        datasets: [{ data:top8.map(d=>d.count), backgroundColor:top8.map(d=>sevColor(d.severity)), borderRadius:3 }]
       },
       options: {
         responsive:true, maintainAspectRatio:false,
+        layout: { padding: { top: 20 } },
         plugins: {
-          legend: {display:false},
+          legend: { display:false },
           tooltip: { backgroundColor:'#151515', borderColor:'#2a2a2a', borderWidth:1,
             titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'},
             callbacks: { title:items=>top8[items[0].dataIndex]?.issue||items[0].label, label:c=>c.raw+' occurrences' }
+          },
+          datalabels: {
+            anchor:'end', align:'top', color:'#999',
+            font:{family:'JetBrains Mono',size:10,weight:'bold'},
+            formatter: v => v > 0 ? v : '',
           }
         },
         scales: {
@@ -4135,6 +4173,43 @@ function renderRptDefects() {
       }
     });
   }
+
+  // ── Severity donut chart ──────────────────────────────
+  if (rptDefSevChartInst) rptDefSevChartInst.destroy();
+  const sevCtx = document.getElementById('rptDefSevChart')?.getContext('2d');
+  const sevData = [sevAgg.Critical||0, sevAgg.Major||0, sevAgg.Minor||0];
+  if (sevCtx && sevData.some(v=>v>0)) {
+    rptDefSevChartInst = new Chart(sevCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Critical','Major','Minor'],
+        datasets: [{
+          data: sevData,
+          backgroundColor: ['rgba(222,42,42,.8)','rgba(245,158,11,.8)','rgba(107,114,128,.7)'],
+          borderColor: ['#DE2A2A','#f59e0b','#555'],
+          borderWidth: 1,
+          hoverOffset: 6,
+        }]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        cutout: '60%',
+        plugins: {
+          legend: { position:'bottom', labels:{color:'#999',font:{family:'JetBrains Mono',size:10},boxWidth:10,padding:12} },
+          tooltip: { backgroundColor:'#151515', borderColor:'#2a2a2a', borderWidth:1,
+            titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'},
+            callbacks: { label: c => ` ${c.label}: ${c.raw} (${totalFail>0?Math.round(c.raw/totalFail*100):0}%)` }
+          },
+          datalabels: {
+            display: c => c.dataset.data[c.dataIndex] > 0,
+            color:'#fff', font:{family:'JetBrains Mono',size:11,weight:'bold'},
+            formatter: (v) => v > 0 ? v : '',
+          }
+        }
+      }
+    });
+  }
+
   renderRptDefTable();
 }
 
@@ -4143,42 +4218,56 @@ function renderRptDefTable() {
   const el = document.getElementById('rptDefTable');
   if (!qc) { el.innerHTML = '<div class="empty">No data</div>'; return; }
 
-  const heatmap = qc.heatmap||[];
-  const defAgg  = {};
-  heatmap.forEach(r => {
-    const c=r.defect_code;
-    if (!defAgg[c]) defAgg[c]={code:c,issue:r.issue,count:0,category:r.category||'',severity:r.severity||'—',prods:new Set()};
-    defAgg[c].count+=Number(r.defect_count)||0;
-    if (r.product) defAgg[c].prods.add(r.product);
-  });
-  const sorted = Object.values(defAgg).sort((a,b)=>b.count-a.count);
-
   if (rptDefView === 'code') {
+    // By defect code — from heatmap
+    const heatmap = qc.heatmap||[];
+    const defAgg  = {};
+    heatmap.forEach(r => {
+      const c=r.defect_code;
+      if (!defAgg[c]) defAgg[c]={code:c,issue:r.issue,count:0,category:r.category||'',severity:r.severity||'—',prods:new Set()};
+      defAgg[c].count+=Number(r.defect_count)||0;
+      if (r.product) defAgg[c].prods.add(r.product);
+    });
+    const sorted = Object.values(defAgg).sort((a,b)=>b.count-a.count);
     if (!sorted.length) { el.innerHTML = '<div class="empty">No defects logged</div>'; return; }
-    el.innerHTML = `<table><thead><tr><th>Code</th><th>Issue</th><th>Category</th><th>Severity</th><th>Products</th><th style="text-align:right">Count</th></tr></thead>
+    const sevColor = s => s==='Critical'?'var(--red)':s==='Major'?'var(--orange)':'var(--t2)';
+    el.innerHTML = `<table><thead><tr><th>Code</th><th>Issue</th><th>Category</th><th>Severity</th><th style="text-align:right">Count</th></tr></thead>
       <tbody>${sorted.map(d=>`<tr>
         <td style="font-family:var(--mono);color:var(--yellow);font-size:10px">${d.code}</td>
         <td>${d.issue||'—'}</td>
         <td style="font-size:11px;color:var(--t2)">${d.category}</td>
-        <td style="font-size:11px">${d.severity}</td>
-        <td style="font-size:11px;color:var(--t2)">${[...d.prods].sort().join(', ')||'—'}</td>
+        <td style="font-size:11px;color:${sevColor(d.severity)};font-weight:600">${d.severity}</td>
         <td style="font-family:var(--mono);color:var(--red);text-align:right;font-weight:700">${d.count}</td>
       </tr>`).join('')}</tbody></table>`;
+
   } else {
+    // By product — from defect_breakdown which has product info
+    const dbk = qc.defect_breakdown || [];
+    if (!dbk.length) { el.innerHTML = '<div class="empty">No product-level defect data</div>'; return; }
     const byProd = {};
-    heatmap.forEach(r => {
-      const p=r.product||'—';
-      if (!byProd[p]) byProd[p]={total:0,topCode:null,topCount:0};
-      const cnt=Number(r.defect_count)||0;
-      byProd[p].total+=cnt;
-      if (cnt>byProd[p].topCount) { byProd[p].topCount=cnt; byProd[p].topCode=r.defect_code+' — '+(r.issue||''); }
+    dbk.forEach(r => {
+      const p = r.product || 'Unknown';
+      if (!byProd[p]) byProd[p] = { total:0, critical:0, major:0, minor:0, topCode:null, topCount:0 };
+      const cnt = Number(r.defect_count)||0;
+      byProd[p].total += cnt;
+      const sev = (r.severity||'').toLowerCase();
+      if (sev==='critical') byProd[p].critical+=cnt;
+      else if (sev==='major') byProd[p].major+=cnt;
+      else byProd[p].minor+=cnt;
+      if (cnt > byProd[p].topCount) {
+        byProd[p].topCount = cnt;
+        byProd[p].topCode  = r.defect_code + ' — ' + (r.issue||'');
+      }
     });
     const prods = Object.keys(byProd).sort((a,b)=>byProd[b].total-byProd[a].total);
-    if (!prods.length) { el.innerHTML = '<div class="empty">No defects logged</div>'; return; }
-    el.innerHTML = `<table><thead><tr><th>Product</th><th>Total Failures</th><th>Top Defect</th></tr></thead>
+    el.innerHTML = `<table>
+      <thead><tr><th>Product</th><th style="text-align:right">Total</th><th style="text-align:right;color:var(--red)">Critical</th><th style="text-align:right;color:var(--orange)">Major</th><th style="text-align:right;color:var(--t2)">Minor</th><th>Top Defect</th></tr></thead>
       <tbody>${prods.map(p=>`<tr>
-        <td>${p}</td>
-        <td style="font-family:var(--mono);color:var(--red);font-weight:700">${byProd[p].total}</td>
+        <td style="font-weight:600">${p}</td>
+        <td style="font-family:var(--mono);color:var(--red);text-align:right;font-weight:700">${byProd[p].total}</td>
+        <td style="font-family:var(--mono);color:var(--red);text-align:right">${byProd[p].critical||'—'}</td>
+        <td style="font-family:var(--mono);color:var(--orange);text-align:right">${byProd[p].major||'—'}</td>
+        <td style="font-family:var(--mono);color:var(--t2);text-align:right">${byProd[p].minor||'—'}</td>
         <td style="font-size:11px;color:var(--t2)">${byProd[p].topCode||'—'}</td>
       </tr>`).join('')}</tbody></table>`;
   }
