@@ -771,6 +771,10 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         <div class="loading"><div class="spinner"></div></div>
       </div>
     </div>
+    <div>
+      <div class="sec-label">Station Pace — Today</div>
+      <div id="lineTaktWrap"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
   </div>
 
   <!-- QC TAB -->
@@ -981,6 +985,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
       <button class="rpt-section-btn active" data-section="production" onclick="switchRptSection('production')">Production</button>
       <button class="rpt-section-btn"        data-section="cycletime"  onclick="switchRptSection('cycletime')">Cycle Time</button>
       <button class="rpt-section-btn"        data-section="defects"    onclick="switchRptSection('defects')">Defects</button>
+      <button class="rpt-section-btn"        data-section="throughput" onclick="switchRptSection('throughput')">Throughput</button>
       <button class="rpt-section-btn"        data-section="downloads"  onclick="switchRptSection('downloads')">Downloads</button>
     </div>
 
@@ -1034,6 +1039,16 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         </div>
       </div>
       <div class="table-wrap" id="rptDefTable"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- THROUGHPUT SECTION -->
+    <div id="rpt-throughput" class="rpt-section-content" style="display:none">
+      <div class="cards" id="rptTaktCards"><div class="loading"><div class="spinner"></div></div></div>
+      <div class="rpt-chart-wrap" style="height:260px"><canvas id="rptTaktChart"></canvas></div>
+      <div class="sec-label">Station Takt by Line</div>
+      <div class="table-wrap" id="rptTaktTable"><div class="loading"><div class="spinner"></div></div></div>
+      <div class="sec-label" style="margin-top:8px">First Unit Timeline — Line Warm-up</div>
+      <div class="table-wrap" id="rptTimelineTable"><div class="loading"><div class="spinner"></div></div></div>
     </div>
 
     <!-- DOWNLOADS SECTION -->
@@ -2105,15 +2120,19 @@ function renderExecRuns(runs, date) {
 
 // ── LINES VIEW ───────────────────────────────────────────────
 async function loadLines() {
-  const data = await api('getLineView', { date: todayStr() });
+  const today = todayStr();
+  const [data, taktRes] = await Promise.all([
+    api('getLineView', { date: today }),
+    api('getTaktTime', { from: today, to: today }),
+  ]);
   if (!data.ok) return;
-  // Build car/remote lookup: { 'L1:INW:car': 317, 'L1:QC_PASS:car': 284, ... }
   const crMap = {};
   (data.data.car_remote || []).forEach(r => {
     crMap[`${r.line}:${r.activity}:${r.component_type}`] = Number(r.cnt) || 0;
   });
   renderLineCards(data.data.lines || [], crMap);
   renderOperatorTable(data.data.operator_stats || []);
+  renderLineTakt(taktRes.ok ? (taktRes.data.takt||[]) : []);
 }
 
 function renderLineCards(lines, crMap) {
@@ -2227,6 +2246,65 @@ function renderOperatorTable(ops) {
       </tbody>
     </table>
   `;
+}
+
+function renderLineTakt(taktRows) {
+  const el = document.getElementById('lineTaktWrap');
+  if (!el) return;
+  if (!taktRows.length) {
+    el.innerHTML = '<div class="empty">No takt data for today</div>';
+    return;
+  }
+
+  const stations = ['INW','QC','PKG','PKG_OUT'];
+  const lines    = [...new Set(taktRows.filter(r=>r.line!=='SHARED').map(r=>r.line))].sort();
+
+  // Build lookup: station+line → row
+  const lookup = {};
+  taktRows.forEach(r => { lookup[r.station+'|'+r.line] = r; });
+
+  const tCol = v => {
+    if (!v) return 'var(--t3)';
+    const n = Number(v);
+    return n <= 5 ? 'var(--green)' : n <= 10 ? 'var(--yellow)' : 'var(--red)';
+  };
+  const fmtT = v => v ? Number(v).toFixed(1) + ' min' : '—';
+  const fmtR = v => v ? Number(v).toFixed(1) + '/hr' : '—';
+
+  // PKG_OUT is SHARED — one row for all lines
+  const pkgout = lookup['PKG_OUT|SHARED'];
+
+  el.innerHTML = `
+    <div style="overflow-x:auto">
+      <table style="min-width:500px">
+        <thead>
+          <tr>
+            <th>Station</th>
+            ${lines.map(l=>`<th style="text-align:center;color:var(--yellow)">${l}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${['INW','QC','PKG'].map(st => `<tr>
+            <td style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--t2)">${st}</td>
+            ${lines.map(l => {
+              const r = lookup[st+'|'+l];
+              if (!r) return '<td style="color:var(--t3);text-align:center">—</td>';
+              return `<td style="text-align:center">
+                <div style="font-family:var(--mono);font-weight:700;color:${tCol(r.avg_takt_mins)}">${fmtT(r.avg_takt_mins)}</div>
+                <div style="font-size:10px;color:var(--t3)">${fmtR(r.units_per_hour)} · ${r.units_measured} units</div>
+              </td>`;
+            }).join('')}
+          </tr>`).join('')}
+          ${pkgout ? `<tr>
+            <td style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--t2)">PKG_OUT</td>
+            <td colspan="${lines.length}" style="text-align:center">
+              <span style="font-family:var(--mono);font-weight:700;color:${tCol(pkgout.avg_takt_mins)}">${fmtT(pkgout.avg_takt_mins)}</span>
+              <span style="font-size:10px;color:var(--t3);margin-left:8px">${fmtR(pkgout.units_per_hour)} · ${pkgout.units_measured} units · SHARED</span>
+            </td>
+          </tr>` : ''}
+        </tbody>
+      </table>
+    </div>`;
 }
 
 // ── QC VIEW ──────────────────────────────────────────────────
@@ -3774,7 +3852,7 @@ function setRptPreset(preset) {
 function switchRptSection(section) {
   rptSection = section;
   document.querySelectorAll('.rpt-section-btn').forEach(b => b.classList.toggle('active', b.dataset.section === section));
-  ['production','cycletime','defects','downloads'].forEach(s => {
+  ['production','cycletime','defects','throughput','downloads'].forEach(s => {
     document.getElementById('rpt-'+s).style.display = s === section ? 'flex' : 'none';
   });
   document.getElementById('rptTimeBar').style.display = section === 'downloads' ? 'none' : '';
@@ -3784,6 +3862,7 @@ function renderRptSection(s) {
   if (s === 'production') renderRptProduction();
   if (s === 'cycletime')  renderRptCycleTime();
   if (s === 'defects')    renderRptDefects();
+  if (s === 'throughput') renderRptThroughput();
   if (s === 'downloads')  renderRptDownloads();
 }
 
@@ -4280,6 +4359,202 @@ function renderRptDefTable() {
 }
 
 // ══ DOWNLOADS ════════════════════════════════════════
+// ══ THROUGHPUT ════════════════════════════════════════
+let rptTaktChartInst = null;
+
+async function renderRptThroughput() {
+  const cardsEl    = document.getElementById('rptTaktCards');
+  const tableEl    = document.getElementById('rptTaktTable');
+  const timelineEl = document.getElementById('rptTimelineTable');
+  const loading    = '<div class="loading"><div class="spinner"></div></div>';
+  cardsEl.innerHTML = loading; tableEl.innerHTML = loading; timelineEl.innerHTML = loading;
+
+  const res = await api('getTaktTime', { from: getRptFrom(), to: getRptTo() });
+  if (!res.ok) {
+    cardsEl.innerHTML = '<div class="empty">Failed to load throughput data</div>';
+    tableEl.innerHTML = ''; timelineEl.innerHTML = ''; return;
+  }
+
+  const takt     = res.data.takt     || [];
+  const timeline = res.data.timeline || [];
+
+  renderTaktCards(takt);
+  renderTaktChart(takt);
+  renderTaktTable(takt);
+  renderTimelineTable(timeline);
+}
+
+function renderTaktCards(takt) {
+  const el = document.getElementById('rptTaktCards');
+  if (!takt.length) { el.innerHTML = '<div class="empty">No takt data for period</div>'; return; }
+
+  const stationAvg = st => {
+    const rows = takt.filter(r => r.station === st && r.avg_takt_mins);
+    if (!rows.length) return null;
+    return rows.reduce((s,r)=>s+Number(r.avg_takt_mins),0)/rows.length;
+  };
+  const tCol = v => !v ? 'var(--t3)' : v<=5?'var(--green)':v<=10?'var(--yellow)':'var(--red)';
+  const tCls = v => !v ? '' : v<=5?'ok':v<=10?'warn':'bad';
+  const fT   = v => v ? v.toFixed(1)+' min' : '—';
+  const fR   = v => v ? (60/v).toFixed(1)+'/hr' : '—';
+
+  const stations = [
+    {id:'INW',    label:'INW Takt',     sub:'Assembly pace'},
+    {id:'QC',     label:'QC Takt',      sub:'QC decision pace'},
+    {id:'PKG',    label:'PKG Takt',     sub:'Packaging pace'},
+    {id:'PKG_OUT',label:'PKG_OUT Takt', sub:'Dispatch pace (shared)'},
+  ];
+
+  el.innerHTML = stations.map(s => {
+    const v = stationAvg(s.id);
+    return `<div class="card ${tCls(v)}">
+      <div class="card-label">${s.label}</div>
+      <div class="card-val" style="color:${tCol(v)};font-size:22px">${fT(v)}</div>
+      <div class="card-sub">${fR(v)} · ${s.sub}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderTaktChart(takt) {
+  if (rptTaktChartInst) rptTaktChartInst.destroy();
+  const ctx = document.getElementById('rptTaktChart')?.getContext('2d');
+  if (!ctx || !takt.length) return;
+
+  const stations = ['INW','QC','PKG','PKG_OUT'];
+  const lines    = [...new Set(takt.map(r=>r.line))].sort();
+  const lineColors = {
+    'L1':'rgba(242,205,26,.75)', 'L2':'rgba(33,60,226,.75)',
+    'L3':'rgba(34,197,94,.75)', 'SHARED':'rgba(107,114,128,.7)',
+  };
+  const lookup = {};
+  takt.forEach(r => { lookup[r.station+'|'+r.line] = Number(r.avg_takt_mins)||0; });
+
+  rptTaktChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: stations,
+      datasets: lines.map(l => ({
+        label: l,
+        data: stations.map(s => lookup[s+'|'+l] || null),
+        backgroundColor: lineColors[l] || 'rgba(153,153,153,.7)',
+        borderRadius: 3,
+      })),
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      layout: { padding:{ top:20 } },
+      plugins: {
+        legend: { labels:{ color:'#999', font:{family:'JetBrains Mono',size:10}, boxWidth:10 } },
+        tooltip: { backgroundColor:'#151515', borderColor:'#2a2a2a', borderWidth:1,
+          titleFont:{family:'JetBrains Mono'}, bodyFont:{family:'JetBrains Mono'},
+          callbacks: { label: c => ` ${c.dataset.label}: ${c.raw ? c.raw.toFixed(1)+' min/unit ('+( 60/c.raw).toFixed(1)+'/hr)' : '—'}` }
+        },
+        datalabels: {
+          anchor:'end', align:'top', color:'#888',
+          font:{family:'JetBrains Mono',size:9,weight:'bold'},
+          formatter: v => v ? v.toFixed(1) : '',
+        }
+      },
+      scales: {
+        x: { ticks:{color:'#999',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#181818'} },
+        y: { ticks:{color:'#666',font:{family:'JetBrains Mono',size:10},callback:v=>v+'m'}, grid:{color:'#181818'}, beginAtZero:true,
+             title:{display:true,text:'min / unit',color:'#555',font:{family:'JetBrains Mono',size:9}} }
+      }
+    }
+  });
+}
+
+function renderTaktTable(takt) {
+  const el = document.getElementById('rptTaktTable');
+  if (!takt.length) { el.innerHTML = '<div class="empty">No data</div>'; return; }
+
+  const stations = ['INW','QC','PKG','PKG_OUT'];
+  const lines    = [...new Set(takt.filter(r=>r.line!=='SHARED').map(r=>r.line))].sort();
+  const lookup   = {};
+  takt.forEach(r => { lookup[r.station+'|'+r.line] = r; });
+
+  const tCol = v => !v?'var(--t3)':Number(v)<=5?'var(--green)':Number(v)<=10?'var(--yellow)':'var(--red)';
+  const cell = r => r
+    ? `<div style="font-family:var(--mono);font-weight:700;color:${tCol(r.avg_takt_mins)}">${Number(r.avg_takt_mins).toFixed(1)} min</div>
+       <div style="font-size:10px;color:var(--t3)">${Number(r.units_per_hour).toFixed(1)}/hr · ${r.units_measured} units</div>`
+    : '<div style="color:var(--t3)">—</div>';
+
+  const pkgout = lookup['PKG_OUT|SHARED'];
+
+  el.innerHTML = `<table>
+    <thead>
+      <tr>
+        <th>Station</th>
+        ${lines.map(l=>`<th style="text-align:center;color:var(--yellow)">${l}</th>`).join('')}
+        <th style="text-align:center;color:var(--t2)">SHARED</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${['INW','QC','PKG'].map(st=>`<tr>
+        <td style="font-family:var(--mono);font-size:10px;letter-spacing:.1em">${st}</td>
+        ${lines.map(l=>`<td style="text-align:center;padding:10px 12px">${cell(lookup[st+'|'+l])}</td>`).join('')}
+        <td style="color:var(--t3);text-align:center">—</td>
+      </tr>`).join('')}
+      <tr>
+        <td style="font-family:var(--mono);font-size:10px;letter-spacing:.1em">PKG_OUT</td>
+        ${lines.map(()=>'<td style="color:var(--t3);text-align:center">—</td>').join('')}
+        <td style="text-align:center;padding:10px 12px">${cell(pkgout)}</td>
+      </tr>
+    </tbody>
+  </table>`;
+}
+
+function renderTimelineTable(timeline) {
+  const el = document.getElementById('rptTimelineTable');
+  if (!timeline.length) { el.innerHTML = '<div class="empty">No first-unit data for period</div>'; return; }
+
+  const fmtIST = ts => {
+    if (!ts) return '—';
+    return new Date(ts).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true});
+  };
+  const fmtDate = d => {
+    if (!d) return '—';
+    const [,m,day] = d.split('-');
+    return day+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1];
+  };
+  const gap = v => {
+    if (v == null) return '<span style="color:var(--t3)">—</span>';
+    const n = Number(v);
+    const col = n<=30?'var(--green)':n<=60?'var(--yellow)':'var(--red)';
+    return `<span style="font-family:var(--mono);color:${col};font-weight:700">+${n} min</span>`;
+  };
+  const warmup = v => {
+    if (v == null) return '—';
+    const n = Number(v);
+    const col = n<=90?'var(--green)':n<=150?'var(--yellow)':'var(--red)';
+    return `<span style="font-family:var(--head);font-weight:900;font-size:18px;color:${col}">${n} min</span>`;
+  };
+
+  el.innerHTML = `<table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Line</th>
+        <th style="text-align:center">INW</th>
+        <th style="text-align:center">→ QC</th>
+        <th style="text-align:center">→ PKG</th>
+        <th style="text-align:center">→ PKG_OUT</th>
+        <th style="text-align:center">Total Warm-up</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${timeline.map(r=>`<tr>
+        <td style="font-family:var(--mono);font-size:10px;color:var(--t2)">${fmtDate(r.scan_date)}</td>
+        <td style="color:var(--yellow);font-weight:700">${r.line}</td>
+        <td style="text-align:center;font-family:var(--mono);font-size:11px">${fmtIST(r.first_inw)}</td>
+        <td style="text-align:center">${gap(r.inw_to_qc_mins)}<div style="font-size:10px;color:var(--t3)">${fmtIST(r.first_qc)}</div></td>
+        <td style="text-align:center">${gap(r.qc_to_pkg_mins)}<div style="font-size:10px;color:var(--t3)">${fmtIST(r.first_pkg)}</div></td>
+        <td style="text-align:center">${gap(r.pkg_to_out_mins)}<div style="font-size:10px;color:var(--t3)">${fmtIST(r.first_pkgout)}</div></td>
+        <td style="text-align:center">${warmup(r.total_warmup_mins)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
 function renderRptDownloads() {
   const el = document.getElementById('rptDlGrid');
   const reports = [
