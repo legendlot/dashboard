@@ -691,8 +691,13 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         <div class="nav-dropdown-item" data-tab="corrections" onclick="selectNavTab('corrections')">Corrections</div>
         <div class="nav-dropdown-item" data-tab="alerts"      onclick="selectNavTab('alerts')">Alerts <span id="alertsBadge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;vertical-align:middle"></span></div>
         <div class="nav-dropdown-item" data-tab="returns"     onclick="selectNavTab('returns')">Returns <span id="returnsBadge" style="display:none;background:var(--orange);color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;vertical-align:middle"></span></div>
-        <div class="nav-dropdown-item" data-tab="dispatch"    onclick="selectNavTab('dispatch')">Dispatch</div>
       </div>
+    </div>
+
+    <div class="nav-group" id="navg-dispatch">
+      <button class="nav-group-btn" onclick="selectNavTab('dispatch')">
+        Dispatch
+      </button>
     </div>
 
     <div class="nav-group" id="navg-reporting">
@@ -1503,7 +1508,8 @@ function updateClock() {
 // ── NAV GROUP LOGIC ───────────────────────────────────────────
 const NAV_GROUPS = {
   production: ['exec','lines','qc'],
-  activity:   ['scans','corrections','alerts','returns','dispatch'],
+  activity:   ['scans','corrections','alerts','returns'],
+  dispatch:   ['dispatch'],
   reporting:  ['reporting'],
   admin:      ['upc','operators','print'],
 };
@@ -4938,7 +4944,7 @@ function switchDspSection(sec) {
 
 // ── Cards ─────────────────────────────────────────────
 async function loadDispatchCards() {
-  const res = await api('getDispatchDashboard', null, 'GET');
+  const res = await api('getDispatchDashboard');
   if (!res.ok) return;
   const c = res.data.counts;
   renderDispatchCards(c);
@@ -4972,14 +4978,13 @@ async function loadDispatchUnits() {
   const dateFrom  = document.getElementById('dspFilterFrom')?.value    || '';
   const dateTo    = document.getElementById('dspFilterTo')?.value      || '';
 
-  const params = new URLSearchParams();
-  if (status)    params.set('status',     status);
-  if (channelId) params.set('channel_id', channelId);
-  if (dateFrom)  params.set('date_from',  dateFrom);
-  if (dateTo)    params.set('date_to',    dateTo);
-  params.set('limit', '200');
-
-  const res = await api('getDispatchDashboard?' + params.toString(), null, 'GET');
+  const params2 = {};
+  if (status)    params2.status     = status;
+  if (channelId) params2.channel_id = channelId;
+  if (dateFrom)  params2.date_from  = dateFrom;
+  if (dateTo)    params2.date_to    = dateTo;
+  params2.limit = '200';
+  const res = await api('getDispatchDashboard', params2);
   if (!res.ok) { el.innerHTML = '<div class="empty">Failed to load units</div>'; return; }
 
   renderDispatchUnitsTable(res.data.units || [], el);
@@ -5032,8 +5037,8 @@ async function loadShipments() {
   if (!el) return;
   el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   const status = document.getElementById('dspShipmentFilter')?.value || '';
-  const params = status ? `?status=${status}` : '';
-  const res = await api('getShipments' + params, null, 'GET');
+  const shpParams = status ? { status } : {};
+  const res = await api('getShipments', shpParams);
   if (!res.ok) { el.innerHTML = '<div class="empty">Failed to load shipments</div>'; return; }
   renderShipmentsTable(res.data, el);
 }
@@ -5081,7 +5086,7 @@ function renderShipmentsTable(shipments, el) {
 
 async function markShipmentShipped(shipmentId, shipmentNo) {
   if (!confirm(`Mark ${shipmentNo} as shipped? This will update all units in this shipment to Shipped.`)) return;
-  const res = await api('markShipmentShipped', { shipment_id: shipmentId });
+  const res = await apiPost('markShipmentShipped', { shipment_id: shipmentId });
   if (res.ok) {
     showToast(`${shipmentNo} marked as shipped`);
     loadShipments();
@@ -5141,8 +5146,8 @@ function toggleWarehouseField() {
 async function submitCreateShipment() {
   const channelId = document.getElementById('newShpChannel')?.value;
   if (!channelId) { showToast('Select a channel', 'error'); return; }
-  const res = await api('createShipment', {
-    channel_id:           channelId,
+  const res = await apiPost('createShipment', {
+    channel_id:            channelId,
     destination_warehouse: document.getElementById('newShpWarehouse')?.value || null,
     scheduled_date:        document.getElementById('newShpDate')?.value      || null,
     notes:                 document.getElementById('newShpNotes')?.value      || null
@@ -5161,7 +5166,7 @@ async function loadChannelMaster() {
   const el = document.getElementById('dspChannelsTable');
   if (!el) return;
   el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-  const res = await api('getDispatchChannels', null, 'GET');
+  const res = await api('getDispatchChannels');
   if (!res.ok) { el.innerHTML = '<div class="empty">Failed to load channels</div>'; return; }
   renderChannelMasterTable(res.data, el);
 }
@@ -5263,9 +5268,9 @@ async function submitChannelForm(channelId) {
 
   let res;
   if (channelId) {
-    res = await api('updateChannel', { channel_id: channelId, name, type, fulfillment_model, is_sale, is_active });
+    res = await apiPost('updateChannel', { channel_id: channelId, name, type, fulfillment_model, is_sale, is_active });
   } else {
-    res = await api('createChannel', { name, type, fulfillment_model, is_sale });
+    res = await apiPost('createChannel', { name, type, fulfillment_model, is_sale });
   }
 
   if (res.ok) {
