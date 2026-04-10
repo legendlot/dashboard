@@ -691,6 +691,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         <div class="nav-dropdown-item" data-tab="corrections" onclick="selectNavTab('corrections')">Corrections</div>
         <div class="nav-dropdown-item" data-tab="alerts"      onclick="selectNavTab('alerts')">Alerts <span id="alertsBadge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;vertical-align:middle"></span></div>
         <div class="nav-dropdown-item" data-tab="returns"     onclick="selectNavTab('returns')">Returns <span id="returnsBadge" style="display:none;background:var(--orange);color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;vertical-align:middle"></span></div>
+        <div class="nav-dropdown-item" data-tab="dispatch"    onclick="selectNavTab('dispatch')">Dispatch</div>
       </div>
     </div>
 
@@ -1149,6 +1150,111 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     </div>
   </div>
 
+  <!-- ══ DISPATCH TAB ══════════════════════════════════════ -->
+  <div id="tab-dispatch" class="content" style="display:none">
+
+    <!-- Headline cards -->
+    <div class="sec-label">Live Dispatch Status</div>
+    <div class="cards" id="dspCards">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Sub-nav -->
+    <div class="rpt-sections" id="dspSubNav">
+      <button class="rpt-section-btn active" data-dspsec="units"     onclick="switchDspSection('units')">Units</button>
+      <button class="rpt-section-btn"        data-dspsec="shipments" onclick="switchDspSection('shipments')">Shipments</button>
+      <button class="rpt-section-btn"        data-dspsec="channels"  onclick="switchDspSection('channels')">Channel Master</button>
+    </div>
+
+    <!-- ── Units section ── -->
+    <div id="dsp-units" style="display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;overflow-y:auto">
+      <!-- Filters -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="dspFilterStatus" onchange="loadDispatchUnits()"
+          style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                 padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
+          <option value="">All Statuses</option>
+          <option value="rtd">PKG Out (RTD)</option>
+          <option value="handed_over">With Dispatch</option>
+          <option value="allocated">Allocated</option>
+          <option value="shipped">Shipped</option>
+        </select>
+        <select id="dspFilterChannel" onchange="loadDispatchUnits()"
+          style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                 padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
+          <option value="">All Channels</option>
+        </select>
+        <input id="dspFilterFrom" type="date" onchange="loadDispatchUnits()"
+          style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                 padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
+        <input id="dspFilterTo" type="date" onchange="loadDispatchUnits()"
+          style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                 padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
+        <button onclick="loadDispatchUnits()"
+          style="background:var(--yellow);color:#000;border:none;border-radius:6px;
+                 padding:7px 16px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer">
+          Refresh
+        </button>
+      </div>
+      <div class="table-wrap" id="dspUnitsTable">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- ── Shipments section ── -->
+    <div id="dsp-shipments" style="display:none;flex-direction:column;gap:12px;flex:1;min-height:0;overflow-y:auto">
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="showCreateShipmentModal()"
+          style="background:var(--yellow);color:#000;border:none;border-radius:6px;
+                 padding:8px 18px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer">
+          + New Shipment
+        </button>
+        <select id="dspShipmentFilter" onchange="loadShipments()"
+          style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                 padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
+          <option value="">All Statuses</option>
+          <option value="draft">Draft</option>
+          <option value="ready">Ready</option>
+          <option value="shipped">Shipped</option>
+        </select>
+      </div>
+      <div class="table-wrap" id="dspShipmentsTable">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- ── Channel Master section ── -->
+    <div id="dsp-channels" style="display:none;flex-direction:column;gap:12px;flex:1;min-height:0;overflow-y:auto">
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="showCreateChannelModal()"
+          style="background:var(--yellow);color:#000;border:none;border-radius:6px;
+                 padding:8px 18px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer">
+          + Add Channel
+        </button>
+      </div>
+      <div class="table-wrap" id="dspChannelsTable">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- GENERIC MODAL -->
+  <div class="modal-overlay" id="genericModal">
+    <div class="modal-box">
+      <div class="modal-title" id="genericModalTitle"></div>
+      <div id="genericModalBody"></div>
+      <div class="modal-err" id="genericModalErr"></div>
+      <div class="modal-footer">
+        <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+        <button class="modal-confirm yellow" id="genericModalConfirm"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px"></div>
+
   <!-- OPERATOR ADD/EDIT MODAL -->
   <div id="opModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center">
     <div style="background:var(--surface);border:1px solid var(--b2);border-radius:12px;padding:28px;width:380px;display:flex;flex-direction:column;gap:16px">
@@ -1397,7 +1503,7 @@ function updateClock() {
 // ── NAV GROUP LOGIC ───────────────────────────────────────────
 const NAV_GROUPS = {
   production: ['exec','lines','qc'],
-  activity:   ['scans','corrections','alerts','returns'],
+  activity:   ['scans','corrections','alerts','returns','dispatch'],
   reporting:  ['reporting'],
   admin:      ['upc','operators','print'],
 };
@@ -1441,7 +1547,7 @@ function switchTab(tab, force = false) {
     if (btn) btn.classList.toggle('active', tabs.includes(tab));
   });
   // Show/hide content panels
-  ['exec','lines','qc','upc','scans','corrections','alerts','returns','reporting','operators','print'].forEach(t => {
+  ['exec','lines','qc','upc','scans','corrections','alerts','returns','reporting','operators','print','dispatch'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
   // Datebar — exec tab only
@@ -1521,6 +1627,7 @@ async function loadTab(tab, forceRefresh = false) {
     if (tab === 'reporting')   await loadReporting();
     if (tab === 'operators')   await loadOperators();
     if (tab === 'print')       initPrintTab();
+    if (tab === 'dispatch')    initDispatch();
     document.getElementById('lastRefresh').textContent =
       'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
   } catch(e) {
@@ -1919,7 +2026,7 @@ function renderExecCards(s, scan) {
       <div class="card-sub">This month</div>
     </div>
     <div class="card blue">
-      <div class="card-label">Dispatch Stock</div>
+      <div class="card-label">PKG Out</div>
       <div class="card-val">${fmt(s.dispatch_stock)}</div>
       <div class="card-sub">Units at RTD</div>
     </div>
@@ -4758,6 +4865,418 @@ function exportCSV(rows, headers, filename) {
 document.getElementById('returnsActionModal').addEventListener('click', function(e) {
   if (e.target === this) closeReturnsActionModal();
 });
+document.getElementById('genericModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ══════════════════════════════════════════════════════
+// GENERIC MODAL + TOAST HELPERS
+// ══════════════════════════════════════════════════════
+
+let _modalConfirmFn = null;
+function showModal(title, bodyHtml, opts) {
+  document.getElementById('genericModalTitle').textContent = title;
+  document.getElementById('genericModalBody').innerHTML = bodyHtml;
+  document.getElementById('genericModalErr').textContent = '';
+  const btn = document.getElementById('genericModalConfirm');
+  btn.textContent = opts.label || 'OK';
+  _modalConfirmFn = opts.fn || null;
+  btn.onclick = () => { if (_modalConfirmFn) _modalConfirmFn(); };
+  document.getElementById('genericModal').style.display = 'flex';
+}
+function closeModal() {
+  document.getElementById('genericModal').style.display = 'none';
+  _modalConfirmFn = null;
+}
+function showToast(msg, type) {
+  const el = document.createElement('div');
+  el.style.cssText = `padding:10px 18px;border-radius:6px;font-size:12px;font-family:var(--mono);
+    font-weight:600;letter-spacing:.04em;color:#000;pointer-events:auto;
+    background:${type === 'error' ? 'var(--red)' : 'var(--green)'};`;
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ══════════════════════════════════════════════════════
+// DISPATCH TAB
+// ══════════════════════════════════════════════════════
+
+let dspSection      = 'units';
+let dspChannelCache = [];
+
+async function initDispatch() {
+  await loadDispatchChannelCache();
+  populateDspChannelFilter();
+  await Promise.all([loadDispatchCards(), loadDispatchUnits()]);
+}
+
+async function loadDispatchChannelCache() {
+  const res = await api('getDispatchChannels');
+  if (res.ok) dspChannelCache = res.data || [];
+}
+
+function populateDspChannelFilter() {
+  const sel = document.getElementById('dspFilterChannel');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">All Channels</option>' +
+    dspChannelCache.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+function switchDspSection(sec) {
+  dspSection = sec;
+  document.querySelectorAll('[data-dspsec]').forEach(b =>
+    b.classList.toggle('active', b.dataset.dspsec === sec));
+  ['units','shipments','channels'].forEach(s => {
+    const el = document.getElementById('dsp-' + s);
+    if (el) el.style.display = s === sec ? 'flex' : 'none';
+  });
+  if (sec === 'units')     loadDispatchUnits();
+  if (sec === 'shipments') loadShipments();
+  if (sec === 'channels')  loadChannelMaster();
+}
+
+// ── Cards ─────────────────────────────────────────────
+async function loadDispatchCards() {
+  const res = await api('getDispatchDashboard', null, 'GET');
+  if (!res.ok) return;
+  const c = res.data.counts;
+  renderDispatchCards(c);
+}
+
+function renderDispatchCards(c) {
+  const el = document.getElementById('dspCards');
+  if (!el) return;
+  const cards = [
+    { label:'PKG Out',       val: c.rtd_count,         sub:'With production',  col:'var(--t2)' },
+    { label:'With Dispatch', val: c.handed_over_count,  sub:'DTK scanned, unallocated', col:'var(--yellow)' },
+    { label:'Allocated',     val: c.allocated_count,    sub:'Channel assigned', col:'var(--blue)' },
+    { label:'Shipped',       val: c.shipped_count,      sub:'Confirmed out',    col:'var(--green)' },
+  ];
+  el.innerHTML = cards.map(c => `
+    <div class="card">
+      <div class="card-label">${c.label}</div>
+      <div class="card-val" style="color:${c.col}">${c.val ?? 0}</div>
+      <div class="card-sub">${c.sub}</div>
+    </div>`).join('');
+}
+
+// ── Units table ───────────────────────────────────────
+async function loadDispatchUnits() {
+  const el = document.getElementById('dspUnitsTable');
+  if (!el) return;
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  const status    = document.getElementById('dspFilterStatus')?.value  || '';
+  const channelId = document.getElementById('dspFilterChannel')?.value || '';
+  const dateFrom  = document.getElementById('dspFilterFrom')?.value    || '';
+  const dateTo    = document.getElementById('dspFilterTo')?.value      || '';
+
+  const params = new URLSearchParams();
+  if (status)    params.set('status',     status);
+  if (channelId) params.set('channel_id', channelId);
+  if (dateFrom)  params.set('date_from',  dateFrom);
+  if (dateTo)    params.set('date_to',    dateTo);
+  params.set('limit', '200');
+
+  const res = await api('getDispatchDashboard?' + params.toString(), null, 'GET');
+  if (!res.ok) { el.innerHTML = '<div class="empty">Failed to load units</div>'; return; }
+
+  renderDispatchUnitsTable(res.data.units || [], el);
+  renderDispatchCards(res.data.counts);
+}
+
+function renderDispatchUnitsTable(units, el) {
+  if (!units.length) { el.innerHTML = '<div class="empty">No units found</div>'; return; }
+
+  const statusBadge = s => {
+    const map = {
+      rtd:         ['RTD',          'var(--t2)',     'rgba(255,255,255,.06)'],
+      handed_over: ['WITH DISPATCH','var(--yellow)', 'rgba(242,205,26,.1)'],
+      allocated:   ['ALLOCATED',    'var(--blue)',   'rgba(33,60,226,.15)'],
+      shipped:     ['SHIPPED',      'var(--green)',  'rgba(0,200,100,.12)']
+    };
+    const [label, col, bg] = map[s] || [s.toUpperCase(), 'var(--t3)', 'transparent'];
+    return `<span style="font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;
+                         border-radius:3px;color:${col};background:${bg}">${label}</span>`;
+  };
+
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Batch Label</th><th>Product</th><th>Line</th>
+      <th>Channel</th><th>Shipment</th><th>Packed</th><th>Status</th>
+    </tr></thead>
+    <tbody>
+      ${units.map(u => `<tr>
+        <td style="font-family:var(--mono);font-size:11px">${u.batch_label}</td>
+        <td>${u.product}${u.model ? ' <span style="color:var(--t3)">' + u.model + '</span>' : ''}
+            ${u.color ? ' <span style="color:var(--t3)">' + u.color + '</span>' : ''}</td>
+        <td style="color:var(--yellow);font-weight:700">${u.line || '—'}</td>
+        <td>${u.channel_name
+              ? `<span style="font-family:var(--mono);font-size:11px">${u.channel_name}</span>
+                 <span style="font-size:9px;color:var(--t3);margin-left:4px">${u.channel_type}</span>`
+              : '<span style="color:var(--t3)">—</span>'}</td>
+        <td style="font-family:var(--mono);font-size:11px">${u.shipment_no || '<span style="color:var(--t3)">—</span>'}</td>
+        <td style="font-family:var(--mono);font-size:10px;color:var(--t2)">
+          ${u.packed_at ? new Date(u.packed_at).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short'}) : '—'}
+        </td>
+        <td>${statusBadge(u.current_status)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+// ── Shipments ─────────────────────────────────────────
+async function loadShipments() {
+  const el = document.getElementById('dspShipmentsTable');
+  if (!el) return;
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  const status = document.getElementById('dspShipmentFilter')?.value || '';
+  const params = status ? `?status=${status}` : '';
+  const res = await api('getShipments' + params, null, 'GET');
+  if (!res.ok) { el.innerHTML = '<div class="empty">Failed to load shipments</div>'; return; }
+  renderShipmentsTable(res.data, el);
+}
+
+function renderShipmentsTable(shipments, el) {
+  if (!shipments.length) { el.innerHTML = '<div class="empty">No shipments yet</div>'; return; }
+  const statusBadge = s => {
+    const map = { draft:['DRAFT','var(--t2)'], ready:['READY','var(--yellow)'], shipped:['SHIPPED','var(--green)'] };
+    const [label, col] = map[s] || [s, 'var(--t3)'];
+    return `<span style="font-size:9px;font-weight:700;color:${col}">${label}</span>`;
+  };
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Shipment</th><th>Channel</th><th>Destination</th>
+      <th>Scheduled</th><th>Status</th><th>Shipped At</th><th>Actions</th>
+    </tr></thead>
+    <tbody>
+      ${shipments.map(s => `<tr>
+        <td style="font-family:var(--mono);font-weight:700">${s.shipment_no}</td>
+        <td>${s.dispatch_channels?.name || '—'}
+            <span style="font-size:9px;color:var(--t3);margin-left:4px">
+              ${s.dispatch_channels?.fulfillment_model || ''}
+            </span></td>
+        <td style="color:var(--t2)">${s.destination_warehouse || '—'}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--t2)">
+          ${s.scheduled_date ? new Date(s.scheduled_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—'}
+        </td>
+        <td>${statusBadge(s.status)}</td>
+        <td style="font-family:var(--mono);font-size:10px;color:var(--t2)">
+          ${s.shipped_at ? new Date(s.shipped_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}
+        </td>
+        <td style="display:flex;gap:6px">
+          ${s.status !== 'shipped'
+            ? `<button onclick="markShipmentShipped('${s.id}','${s.shipment_no}')"
+                 style="background:var(--green);color:#000;border:none;border-radius:4px;
+                        padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer">
+                 Mark Shipped
+               </button>`
+            : ''}
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function markShipmentShipped(shipmentId, shipmentNo) {
+  if (!confirm(`Mark ${shipmentNo} as shipped? This will update all units in this shipment to Shipped.`)) return;
+  const res = await api('markShipmentShipped', { shipment_id: shipmentId });
+  if (res.ok) {
+    showToast(`${shipmentNo} marked as shipped`);
+    loadShipments();
+    loadDispatchCards();
+  } else {
+    showToast(res.error || 'Failed to mark shipped', 'error');
+  }
+}
+
+// ── Create shipment modal ──────────────────────────────
+function showCreateShipmentModal() {
+  const channelOpts = dspChannelCache.map(c =>
+    `<option value="${c.id}" data-fulfillment="${c.fulfillment_model}">${c.name} (${c.type})</option>`
+  ).join('');
+
+  showModal('Create Shipment', `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Channel *</label>
+        <select id="newShpChannel" onchange="toggleWarehouseField()"
+          style="width:100%;background:var(--s2);border:1px solid var(--b1);
+                 border-radius:6px;padding:8px 12px;color:var(--t1);font-size:13px">
+          <option value="">Select channel...</option>
+          ${channelOpts}
+        </select>
+      </div>
+      <div id="newShpWarehouseRow" style="display:none">
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Destination Warehouse</label>
+        <input id="newShpWarehouse" type="text" placeholder="e.g. BOM1, DEL2"
+          style="width:100%;background:var(--s2);border:1px solid var(--b1);
+                 border-radius:6px;padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Scheduled Date</label>
+        <input id="newShpDate" type="date"
+          style="width:100%;background:var(--s2);border:1px solid var(--b1);
+                 border-radius:6px;padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Notes</label>
+        <input id="newShpNotes" type="text" placeholder="Optional"
+          style="width:100%;background:var(--s2);border:1px solid var(--b1);
+                 border-radius:6px;padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
+      </div>
+    </div>`,
+    { label:'Create', fn: submitCreateShipment }
+  );
+}
+
+function toggleWarehouseField() {
+  const sel = document.getElementById('newShpChannel');
+  const opt = sel.options[sel.selectedIndex];
+  const row = document.getElementById('newShpWarehouseRow');
+  if (row) row.style.display = opt?.dataset.fulfillment === 'bulk' ? 'block' : 'none';
+}
+
+async function submitCreateShipment() {
+  const channelId = document.getElementById('newShpChannel')?.value;
+  if (!channelId) { showToast('Select a channel', 'error'); return; }
+  const res = await api('createShipment', {
+    channel_id:           channelId,
+    destination_warehouse: document.getElementById('newShpWarehouse')?.value || null,
+    scheduled_date:        document.getElementById('newShpDate')?.value      || null,
+    notes:                 document.getElementById('newShpNotes')?.value      || null
+  });
+  if (res.ok) {
+    closeModal();
+    showToast(`${res.data.shipment_no} created`);
+    loadShipments();
+  } else {
+    showToast(res.error || 'Failed to create', 'error');
+  }
+}
+
+// ── Channel master ─────────────────────────────────────
+async function loadChannelMaster() {
+  const el = document.getElementById('dspChannelsTable');
+  if (!el) return;
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  const res = await api('getDispatchChannels', null, 'GET');
+  if (!res.ok) { el.innerHTML = '<div class="empty">Failed to load channels</div>'; return; }
+  renderChannelMasterTable(res.data, el);
+}
+
+function renderChannelMasterTable(channels, el) {
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Channel</th><th>Type</th><th>Fulfillment</th>
+      <th>Is Sale</th><th>Active</th><th>Actions</th>
+    </tr></thead>
+    <tbody>
+      ${channels.map(c => `<tr style="${!c.is_active ? 'opacity:.45' : ''}">
+        <td style="font-weight:700">${c.name}</td>
+        <td>
+          <span style="font-size:10px;padding:2px 7px;border-radius:3px;font-weight:700;
+            background:${c.type==='ecom'?'rgba(33,60,226,.15)':c.type==='retail'?'rgba(242,205,26,.1)':'rgba(255,255,255,.06)'};
+            color:${c.type==='ecom'?'var(--blue)':c.type==='retail'?'var(--yellow)':'var(--t2)'}">
+            ${c.type.toUpperCase()}
+          </span>
+        </td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--t2)">${c.fulfillment_model}</td>
+        <td>${c.is_sale
+          ? '<span style="color:var(--green);font-size:11px">● Sale</span>'
+          : '<span style="color:var(--t3);font-size:11px">● Cost</span>'}</td>
+        <td>${c.is_active
+          ? '<span style="color:var(--green);font-size:11px">Active</span>'
+          : '<span style="color:var(--t3);font-size:11px">Inactive</span>'}</td>
+        <td>
+          <button onclick="showEditChannelModal(${JSON.stringify(c).replace(/"/g,'&quot;')})"
+            style="background:var(--s3);color:var(--t1);border:1px solid var(--b1);
+                   border-radius:4px;padding:4px 10px;font-size:10px;cursor:pointer">
+            Edit
+          </button>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function showCreateChannelModal() {
+  showEditChannelModal(null);
+}
+
+function showEditChannelModal(ch) {
+  const isNew = !ch;
+  showModal(isNew ? 'Add Channel' : `Edit — ${ch.name}`, `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Name *</label>
+        <input id="chName" type="text" value="${ch?.name || ''}"
+          style="width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                 padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Type *</label>
+        <select id="chType"
+          style="width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                 padding:8px 12px;color:var(--t1);font-size:13px">
+          <option value="ecom"   ${ch?.type==='ecom'   ?'selected':''}>Ecom</option>
+          <option value="retail" ${ch?.type==='retail' ?'selected':''}>Retail</option>
+          <option value="other"  ${ch?.type==='other'  ?'selected':''}>Other</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Fulfillment Model *</label>
+        <select id="chFulfillment"
+          style="width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                 padding:8px 12px;color:var(--t1);font-size:13px">
+          <option value="unit" ${ch?.fulfillment_model==='unit'?'selected':''}>Unit (one by one)</option>
+          <option value="bulk" ${ch?.fulfillment_model==='bulk'?'selected':''}>Bulk (grouped shipment)</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:16px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input id="chIsSale" type="checkbox" ${ch?.is_sale!==false?'checked':''}>
+          Is Sale channel (generates revenue)
+        </label>
+      </div>
+      ${!isNew ? `
+      <div style="display:flex;gap:16px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input id="chIsActive" type="checkbox" ${ch?.is_active?'checked':''}>
+          Active
+        </label>
+      </div>` : ''}
+    </div>`,
+    { label: isNew ? 'Add Channel' : 'Save Changes', fn: () => submitChannelForm(ch?.id || null) }
+  );
+}
+
+async function submitChannelForm(channelId) {
+  const name            = document.getElementById('chName')?.value.trim();
+  const type            = document.getElementById('chType')?.value;
+  const fulfillment_model = document.getElementById('chFulfillment')?.value;
+  const is_sale         = document.getElementById('chIsSale')?.checked ?? true;
+  const is_active       = channelId ? (document.getElementById('chIsActive')?.checked ?? true) : true;
+
+  if (!name) { showToast('Name is required', 'error'); return; }
+
+  let res;
+  if (channelId) {
+    res = await api('updateChannel', { channel_id: channelId, name, type, fulfillment_model, is_sale, is_active });
+  } else {
+    res = await api('createChannel', { name, type, fulfillment_model, is_sale });
+  }
+
+  if (res.ok) {
+    closeModal();
+    showToast(channelId ? 'Channel updated' : 'Channel added');
+    await loadDispatchChannelCache();
+    loadChannelMaster();
+  } else {
+    showToast(res.error || 'Failed to save channel', 'error');
+  }
+}
 </script>
 </body>
 </html>
