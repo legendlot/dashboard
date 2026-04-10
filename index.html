@@ -590,6 +590,8 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 }
 .rpt-section-btn:hover{color:var(--t2)}
 .rpt-section-btn.active{color:var(--yellow);border-bottom-color:var(--yellow)}
+.dsp-preset-btn{background:var(--s2);border:1px solid var(--b1);border-radius:6px;padding:5px 12px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--t2);cursor:pointer;letter-spacing:.06em}
+.dsp-preset-btn.active{background:var(--yellow);color:#000;border-color:var(--yellow)}
 .rpt-time-bar{
   display:flex;align-items:center;gap:8px;padding:10px 0 12px;flex-wrap:wrap;flex-shrink:0;
 }
@@ -1161,6 +1163,36 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     <!-- Headline cards -->
     <div class="sec-label">Live Dispatch Status</div>
     <div class="cards" id="dspCards">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Allocated by channel -->
+    <div class="sec-label">Allocated — Awaiting Dispatch</div>
+    <div class="cards" id="dspAllocCards">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Sent out section with its own date filter -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:4px">
+      <div class="sec-label" style="margin:0">Sent Out by Channel</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="dsp-preset-btn active" data-preset="10days"   onclick="setDspPreset(this)">10 Days</button>
+        <button class="dsp-preset-btn"        data-preset="thisweek" onclick="setDspPreset(this)">This Week</button>
+        <button class="dsp-preset-btn"        data-preset="thismonth"onclick="setDspPreset(this)">This Month</button>
+        <button class="dsp-preset-btn"        data-preset="custom"   onclick="setDspPreset(this)">Custom</button>
+        <div id="dspCustomRange" style="display:none;gap:6px;align-items:center">
+          <input id="dspShippedFrom" type="date" onchange="loadShippedByChannel()"
+            style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                   padding:5px 10px;color:var(--t1);font-family:var(--mono);font-size:11px">
+          <span style="color:var(--t3);font-size:11px">→</span>
+          <input id="dspShippedTo" type="date" onchange="loadShippedByChannel()"
+            style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                   padding:5px 10px;color:var(--t1);font-family:var(--mono);font-size:11px">
+        </div>
+      </div>
+    </div>
+    <div id="dspShippedSummary" style="font-family:var(--mono);font-size:12px;color:var(--t2);padding:4px 0 8px"></div>
+    <div class="cards" id="dspShippedCards">
       <div class="loading"><div class="spinner"></div></div>
     </div>
 
@@ -4914,7 +4946,8 @@ let dspChannelCache = [];
 async function initDispatch() {
   await loadDispatchChannelCache();
   populateDspChannelFilter();
-  await Promise.all([loadDispatchCards(), loadDispatchUnits()]);
+  setDspPresetDates('10days');
+  await Promise.all([loadDispatchCards(), loadDispatchUnits(), loadAllocatedByChannel(), loadShippedByChannel()]);
 }
 
 async function loadDispatchChannelCache() {
@@ -4964,6 +4997,106 @@ function renderDispatchCards(c) {
       <div class="card-label">${c.label}</div>
       <div class="card-val" style="color:${c.col}">${c.val ?? 0}</div>
       <div class="card-sub">${c.sub}</div>
+    </div>`).join('');
+}
+
+// ── Allocated by channel ──────────────────────────────
+async function loadAllocatedByChannel() {
+  const el = document.getElementById('dspAllocCards');
+  if (!el) return;
+  const res = await api('getAllocatedByChannel');
+  if (!res.ok) { el.innerHTML = '<div class="empty">Failed to load</div>'; return; }
+  renderChannelCountCards(res.data, el, 'allocated');
+}
+
+// ── Shipped by channel ────────────────────────────────
+let dspShippedFrom = null;
+let dspShippedTo   = null;
+
+function setDspPreset(btn) {
+  document.querySelectorAll('.dsp-preset-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  setDspPresetDates(btn.dataset.preset);
+  loadShippedByChannel();
+}
+
+function setDspPresetDates(preset) {
+  const now   = new Date();
+  const today = now.toISOString().slice(0,10);
+  const pad   = n => String(n).padStart(2,'0');
+  const fmt   = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+  const customRow = document.getElementById('dspCustomRange');
+
+  if (preset === '10days') {
+    const d = new Date(now); d.setDate(d.getDate() - 9);
+    dspShippedFrom = fmt(d); dspShippedTo = today;
+    if (customRow) customRow.style.display = 'none';
+  } else if (preset === 'thisweek') {
+    const d = new Date(now); d.setDate(d.getDate() - d.getDay() + 1);
+    dspShippedFrom = fmt(d); dspShippedTo = today;
+    if (customRow) customRow.style.display = 'none';
+  } else if (preset === 'thismonth') {
+    dspShippedFrom = `${now.getFullYear()}-${pad(now.getMonth()+1)}-01`;
+    dspShippedTo   = today;
+    if (customRow) customRow.style.display = 'none';
+  } else if (preset === 'custom') {
+    if (customRow) customRow.style.display = 'flex';
+    dspShippedFrom = document.getElementById('dspShippedFrom')?.value || null;
+    dspShippedTo   = document.getElementById('dspShippedTo')?.value   || null;
+  }
+}
+
+async function loadShippedByChannel() {
+  const el = document.getElementById('dspShippedCards');
+  const sumEl = document.getElementById('dspShippedSummary');
+  if (!el) return;
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  if (sumEl) sumEl.textContent = '';
+
+  const params = {};
+  if (dspShippedFrom) params.date_from = dspShippedFrom;
+  if (dspShippedTo)   params.date_to   = dspShippedTo;
+
+  const res = await api('getShippedByChannel', params);
+  if (!res.ok) { el.innerHTML = '<div class="empty">Failed to load</div>'; return; }
+
+  const data = res.data || [];
+  const totalSale    = data.filter(c => c.is_sale).reduce((s,c) => s + Number(c.unit_count), 0);
+  const totalNonSale = data.filter(c => !c.is_sale).reduce((s,c) => s + Number(c.unit_count), 0);
+  const total        = totalSale + totalNonSale;
+
+  if (sumEl && total > 0) {
+    sumEl.innerHTML = `
+      <span style="color:var(--green);font-weight:700">${totalSale.toLocaleString()} sold</span>
+      <span style="color:var(--t3);margin:0 6px">·</span>
+      <span style="color:var(--t2)">${totalNonSale.toLocaleString()} non-sale</span>
+      <span style="color:var(--t3);margin:0 6px">·</span>
+      <span style="color:var(--t1);font-weight:700">${total.toLocaleString()} total</span>`;
+  } else if (sumEl) {
+    sumEl.textContent = 'No shipments in selected period';
+  }
+
+  renderChannelCountCards(data, el, 'shipped');
+}
+
+function renderChannelCountCards(data, el, mode) {
+  if (!data.length) {
+    el.innerHTML = `<div class="empty">${mode === 'allocated' ? 'No allocated units' : 'No shipments in period'}</div>`;
+    return;
+  }
+  const typeBadge = type => {
+    const map = { ecom:['ECOM','var(--blue)','rgba(33,60,226,.15)'], retail:['RETAIL','var(--yellow)','rgba(242,205,26,.1)'], other:['OTHER','var(--t2)','rgba(255,255,255,.06)'] };
+    const [label,col,bg] = map[type] || ['—','var(--t3)','transparent'];
+    return `<span style="font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:3px;color:${col};background:${bg}">${label}</span>`;
+  };
+  el.innerHTML = data.map(c => `
+    <div class="card" style="${!c.is_sale ? 'opacity:.75' : ''}">
+      <div class="card-label" style="display:flex;align-items:center;gap:6px;justify-content:space-between">
+        <span>${c.channel_name}</span>${typeBadge(c.channel_type)}
+      </div>
+      <div class="card-val" style="color:${c.is_sale ? 'var(--green)' : 'var(--t2)'}">${Number(c.unit_count).toLocaleString()}</div>
+      <div class="card-sub">${c.is_sale ? 'Sale channel' : 'Non-sale'}</div>
     </div>`).join('');
 }
 
