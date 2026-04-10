@@ -5038,7 +5038,7 @@ async function loadShipments() {
   el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   const status = document.getElementById('dspShipmentFilter')?.value || '';
   const shpParams = status ? { status } : {};
-  const res = await api('getShipments', shpParams);
+  const res = await api('getDispatchShipments', shpParams);
   if (!res.ok) { el.innerHTML = '<div class="empty">Failed to load shipments</div>'; return; }
   renderShipmentsTable(res.data, el);
 }
