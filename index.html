@@ -441,7 +441,9 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 .modal-box{
   background:var(--s2);border:1px solid var(--b2);border-radius:10px;
   padding:24px;width:440px;max-width:calc(100vw - 40px);
+  max-height:calc(100vh - 80px);
   display:flex;flex-direction:column;gap:14px;
+  overflow:hidden;
 }
 .modal-title{font-family:var(--head);font-weight:700;font-size:14px;letter-spacing:.06em}
 .modal-meta{font-size:11px;color:var(--t2);line-height:1.6;background:var(--s3);
@@ -1280,7 +1282,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
   <div class="modal-overlay" id="genericModal">
     <div class="modal-box">
       <div class="modal-title" id="genericModalTitle"></div>
-      <div id="genericModalBody"></div>
+      <div id="genericModalBody" style="overflow-y:auto;flex:1;min-height:0"></div>
       <div class="modal-err" id="genericModalErr"></div>
       <div class="modal-footer">
         <button class="modal-cancel" onclick="closeModal()">Cancel</button>
