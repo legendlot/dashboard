@@ -1253,6 +1253,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
         <option value="packing">Packing</option>
         <option value="ready">Ready</option>
         <option value="shipped">Shipped</option>
+        <option value="cancelled">Cancelled</option>
       </select>
     </div>
     <div class="table-wrap" id="dspShipmentsTable">
@@ -5210,7 +5211,7 @@ async function refreshShipmentDetail() {
 
   if (!shipment) { modalBody.innerHTML = '<div class="empty">Shipment not found</div>'; return; }
 
-  const statusColor = { draft:'var(--t3)', packing:'var(--orange)', ready:'var(--yellow)', shipped:'var(--green)' };
+  const statusColor = { draft:'var(--t3)', packing:'var(--orange)', ready:'var(--yellow)', shipped:'var(--green)', cancelled:'var(--red)' };
 
   modalBody.innerHTML = `
     <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
@@ -5404,19 +5405,44 @@ function renderShipmentsTable(shipments, el) {
             ${s.scheduled_date ? new Date(s.scheduled_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—'}
           </td>
           <td>${statusBadge(s.status)}</td>
-          <td onclick="event.stopPropagation()" style="display:flex;gap:6px">
-            ${s.status !== 'shipped'
-              ? `<button onclick="markShipmentShipped('${s.id}','${s.shipment_no}')"
-                   style="background:var(--green);color:#000;border:none;border-radius:4px;
-                          padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer">
-                   Mark Shipped
-                 </button>`
-              : ''}
+          <td onclick="event.stopPropagation()" style="display:flex;gap:6px;flex-wrap:wrap">
+            ${!['shipped','cancelled'].includes(s.status) ? `
+              <button onclick="markShipmentShipped('${s.id}','${s.shipment_no}')"
+                style="background:var(--green);color:#000;border:none;border-radius:4px;
+                       padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer">
+                Shipped
+              </button>` : ''}
+            ${['draft','packing'].includes(s.status) ? `
+              <button onclick="cancelShipmentAction('${s.id}','${s.shipment_no}')"
+                style="background:var(--s3);color:var(--orange);border:1px solid var(--orange);
+                       border-radius:4px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer">
+                Cancel
+              </button>` : ''}
+            ${s.status === 'draft' ? `
+              <button onclick="deleteShipmentAction('${s.id}','${s.shipment_no}')"
+                style="background:var(--s3);color:var(--red);border:1px solid var(--red);
+                       border-radius:4px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer">
+                Delete
+              </button>` : ''}
           </td>
         </tr>`;
       }).join('')}
     </tbody>
   </table>`;
+}
+
+async function cancelShipmentAction(id, ref) {
+  if (!confirm(`Cancel ${ref}? It will be marked cancelled but not deleted.`)) return;
+  const res = await apiPost('cancelShipment', { shipment_id: id });
+  if (res.ok) { showToast(`${ref} cancelled`); loadShipments(); }
+  else showToast(res.error || 'Failed to cancel', 'error');
+}
+
+async function deleteShipmentAction(id, ref) {
+  if (!confirm(`Permanently delete ${ref}? This cannot be undone.`)) return;
+  const res = await apiPost('deleteShipment', { shipment_id: id });
+  if (res.ok) { showToast(`${ref} deleted`); loadShipments(); }
+  else showToast(res.error || 'Failed to delete', 'error');
 }
 
 async function markShipmentShipped(shipmentId, shipmentNo) {
