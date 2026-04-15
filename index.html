@@ -697,9 +697,14 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     </div>
 
     <div class="nav-group" id="navg-dispatch">
-      <button class="nav-group-btn" onclick="selectNavTab('dispatch')">
-        Dispatch
+      <button class="nav-group-btn" onclick="toggleNavGroup(event,'dispatch')">
+        Dispatch <span class="nav-chevron">▼</span>
       </button>
+      <div class="nav-dropdown" id="navd-dispatch">
+        <div class="nav-dropdown-item" data-tab="dispatch"           onclick="selectNavTab('dispatch')">Overview</div>
+        <div class="nav-dropdown-item" data-tab="dispatch-shipments" onclick="selectNavTab('dispatch-shipments')">Shipments</div>
+        <div class="nav-dropdown-item" data-tab="dispatch-channels"  onclick="selectNavTab('dispatch-channels')">Channel Master</div>
+      </div>
     </div>
 
     <div class="nav-group" id="navg-reporting">
@@ -1157,29 +1162,26 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
     </div>
   </div>
 
-  <!-- ══ DISPATCH TAB ══════════════════════════════════════ -->
+  <!-- ══ DISPATCH: OVERVIEW ══════════════════════════════════ -->
   <div id="tab-dispatch" class="content" style="display:none">
 
-    <!-- Headline cards -->
     <div class="sec-label">Live Dispatch Status</div>
     <div class="cards" id="dspCards">
       <div class="loading"><div class="spinner"></div></div>
     </div>
 
-    <!-- Allocated by channel -->
     <div class="sec-label">Allocated — Awaiting Dispatch</div>
     <div class="cards" id="dspAllocCards">
       <div class="loading"><div class="spinner"></div></div>
     </div>
 
-    <!-- Sent out section with its own date filter -->
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:4px">
       <div class="sec-label" style="margin:0">Sent Out by Channel</div>
       <div style="display:flex;gap:6px;align-items:center">
-        <button class="dsp-preset-btn active" data-preset="10days"   onclick="setDspPreset(this)">10 Days</button>
-        <button class="dsp-preset-btn"        data-preset="thisweek" onclick="setDspPreset(this)">This Week</button>
-        <button class="dsp-preset-btn"        data-preset="thismonth"onclick="setDspPreset(this)">This Month</button>
-        <button class="dsp-preset-btn"        data-preset="custom"   onclick="setDspPreset(this)">Custom</button>
+        <button class="dsp-preset-btn active" data-preset="10days"    onclick="setDspPreset(this)">10 Days</button>
+        <button class="dsp-preset-btn"        data-preset="thisweek"  onclick="setDspPreset(this)">This Week</button>
+        <button class="dsp-preset-btn"        data-preset="thismonth" onclick="setDspPreset(this)">This Month</button>
+        <button class="dsp-preset-btn"        data-preset="custom"    onclick="setDspPreset(this)">Custom</button>
         <div id="dspCustomRange" style="display:none;gap:6px;align-items:center">
           <input id="dspShippedFrom" type="date" onchange="loadShippedByChannel()"
             style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
@@ -1196,82 +1198,80 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
       <div class="loading"><div class="spinner"></div></div>
     </div>
 
-    <!-- Sub-nav -->
-    <div class="rpt-sections" id="dspSubNav">
-      <button class="rpt-section-btn active" data-dspsec="units"     onclick="switchDspSection('units')">Units</button>
-      <button class="rpt-section-btn"        data-dspsec="shipments" onclick="switchDspSection('shipments')">Shipments</button>
-      <button class="rpt-section-btn"        data-dspsec="channels"  onclick="switchDspSection('channels')">Channel Master</button>
+    <div class="sec-label">Units</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <select id="dspFilterStatus" onchange="loadDispatchUnits()"
+        style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+               padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
+        <option value="">All Statuses</option>
+        <option value="rtd">PKG Out (RTD)</option>
+        <option value="handed_over">With Dispatch</option>
+        <option value="allocated">Allocated</option>
+        <option value="packed_dispatch">Packed</option>
+        <option value="shipped">Shipped</option>
+      </select>
+      <select id="dspFilterChannel" onchange="loadDispatchUnits()"
+        style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+               padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
+        <option value="">All Channels</option>
+      </select>
+      <input id="dspFilterFrom" type="date" onchange="loadDispatchUnits()"
+        style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+               padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
+      <input id="dspFilterTo" type="date" onchange="loadDispatchUnits()"
+        style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+               padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
+      <button onclick="loadDispatchUnits()"
+        style="background:var(--yellow);color:#000;border:none;border-radius:6px;
+               padding:7px 16px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer">
+        Refresh
+      </button>
+    </div>
+    <div class="table-wrap" id="dspUnitsTable">
+      <div class="loading"><div class="spinner"></div></div>
     </div>
 
-    <!-- ── Units section ── -->
-    <div id="dsp-units" style="display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;overflow-y:auto">
-      <!-- Filters -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <select id="dspFilterStatus" onchange="loadDispatchUnits()"
-          style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
-                 padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
-          <option value="">All Statuses</option>
-          <option value="rtd">PKG Out (RTD)</option>
-          <option value="handed_over">With Dispatch</option>
-          <option value="allocated">Allocated</option>
-          <option value="shipped">Shipped</option>
-        </select>
-        <select id="dspFilterChannel" onchange="loadDispatchUnits()"
-          style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
-                 padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
-          <option value="">All Channels</option>
-        </select>
-        <input id="dspFilterFrom" type="date" onchange="loadDispatchUnits()"
-          style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
-                 padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
-        <input id="dspFilterTo" type="date" onchange="loadDispatchUnits()"
-          style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
-                 padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
-        <button onclick="loadDispatchUnits()"
-          style="background:var(--yellow);color:#000;border:none;border-radius:6px;
-                 padding:7px 16px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer">
-          Refresh
-        </button>
-      </div>
-      <div class="table-wrap" id="dspUnitsTable">
-        <div class="loading"><div class="spinner"></div></div>
-      </div>
+  </div>
+
+  <!-- ══ DISPATCH: SHIPMENTS ══════════════════════════════════ -->
+  <div id="tab-dispatch-shipments" class="content" style="display:none">
+
+    <div class="sec-label">Shipments</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <button onclick="showCreateShipmentModal()"
+        style="background:var(--yellow);color:#000;border:none;border-radius:6px;
+               padding:8px 18px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer">
+        + New Shipment
+      </button>
+      <select id="dspShipmentFilter" onchange="loadShipments()"
+        style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+               padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
+        <option value="">All Statuses</option>
+        <option value="draft">Draft</option>
+        <option value="packing">Packing</option>
+        <option value="ready">Ready</option>
+        <option value="shipped">Shipped</option>
+      </select>
+    </div>
+    <div class="table-wrap" id="dspShipmentsTable">
+      <div class="loading"><div class="spinner"></div></div>
     </div>
 
-    <!-- ── Shipments section ── -->
-    <div id="dsp-shipments" style="display:none;flex-direction:column;gap:12px;flex:1;min-height:0;overflow-y:auto">
-      <div style="display:flex;gap:8px;align-items:center">
-        <button onclick="showCreateShipmentModal()"
-          style="background:var(--yellow);color:#000;border:none;border-radius:6px;
-                 padding:8px 18px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer">
-          + New Shipment
-        </button>
-        <select id="dspShipmentFilter" onchange="loadShipments()"
-          style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
-                 padding:7px 12px;color:var(--t1);font-family:var(--mono);font-size:12px">
-          <option value="">All Statuses</option>
-          <option value="draft">Draft</option>
-          <option value="ready">Ready</option>
-          <option value="shipped">Shipped</option>
-        </select>
-      </div>
-      <div class="table-wrap" id="dspShipmentsTable">
-        <div class="loading"><div class="spinner"></div></div>
-      </div>
-    </div>
+  </div>
 
-    <!-- ── Channel Master section ── -->
-    <div id="dsp-channels" style="display:none;flex-direction:column;gap:12px;flex:1;min-height:0;overflow-y:auto">
-      <div style="display:flex;gap:8px;align-items:center">
-        <button onclick="showCreateChannelModal()"
-          style="background:var(--yellow);color:#000;border:none;border-radius:6px;
-                 padding:8px 18px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer">
-          + Add Channel
-        </button>
-      </div>
-      <div class="table-wrap" id="dspChannelsTable">
-        <div class="loading"><div class="spinner"></div></div>
-      </div>
+  <!-- ══ DISPATCH: CHANNEL MASTER ══════════════════════════════ -->
+  <div id="tab-dispatch-channels" class="content" style="display:none">
+
+    <div class="sec-label">Channel Master</div>
+    <div style="margin-bottom:8px">
+      <button onclick="showCreateChannelModal()"
+        style="background:var(--yellow);color:#000;border:none;border-radius:6px;
+               padding:8px 18px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer">
+        + Add Channel
+      </button>
+    </div>
+    <div class="table-wrap" id="dspChannelsTable">
+      <div class="loading"><div class="spinner"></div></div>
     </div>
 
   </div>
@@ -1541,7 +1541,7 @@ function updateClock() {
 const NAV_GROUPS = {
   production: ['exec','lines','qc'],
   activity:   ['scans','corrections','alerts','returns'],
-  dispatch:   ['dispatch'],
+  dispatch:   ['dispatch','dispatch-shipments','dispatch-channels'],
   reporting:  ['reporting'],
   admin:      ['upc','operators','print'],
 };
@@ -1585,7 +1585,7 @@ function switchTab(tab, force = false) {
     if (btn) btn.classList.toggle('active', tabs.includes(tab));
   });
   // Show/hide content panels
-  ['exec','lines','qc','upc','scans','corrections','alerts','returns','reporting','operators','print','dispatch'].forEach(t => {
+  ['exec','lines','qc','upc','scans','corrections','alerts','returns','reporting','operators','print','dispatch','dispatch-shipments','dispatch-channels'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
   // Datebar — exec tab only
@@ -1665,7 +1665,9 @@ async function loadTab(tab, forceRefresh = false) {
     if (tab === 'reporting')   await loadReporting();
     if (tab === 'operators')   await loadOperators();
     if (tab === 'print')       initPrintTab();
-    if (tab === 'dispatch')    initDispatch();
+    if (tab === 'dispatch')             initDispatch();
+    if (tab === 'dispatch-shipments')   { loadDispatchChannelCache().then(() => loadShipments()); }
+    if (tab === 'dispatch-channels')    { loadDispatchChannelCache().then(() => loadChannelMaster()); }
     document.getElementById('lastRefresh').textContent =
       'Updated ' + new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
   } catch(e) {
@@ -4962,18 +4964,7 @@ function populateDspChannelFilter() {
     dspChannelCache.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
 }
 
-function switchDspSection(sec) {
-  dspSection = sec;
-  document.querySelectorAll('[data-dspsec]').forEach(b =>
-    b.classList.toggle('active', b.dataset.dspsec === sec));
-  ['units','shipments','channels'].forEach(s => {
-    const el = document.getElementById('dsp-' + s);
-    if (el) el.style.display = s === sec ? 'flex' : 'none';
-  });
-  if (sec === 'units')     loadDispatchUnits();
-  if (sec === 'shipments') loadShipments();
-  if (sec === 'channels')  loadChannelMaster();
-}
+function switchDspSection(sec) { /* removed — sections are now separate tabs */ }
 
 // ── Cards ─────────────────────────────────────────────
 async function loadDispatchCards() {
