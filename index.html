@@ -5504,55 +5504,63 @@ function addShipmentProduct() {
   if (shipmentPickerQueue[product]) { showToast(product + ' already added', 'warn'); return; }
   shipmentPickerQueue[product] = true;
   sel.value = '';
-  renderShipmentManifestPicker();
+
+  const container = document.getElementById('newShpManifest');
+  if (!container) return;
+
+  // Remove "no products" placeholder if present
+  const placeholder = container.querySelector('.shp-placeholder');
+  if (placeholder) placeholder.remove();
+
+  // Append only the new product block — don't touch existing ones
+  const variants = shipmentProductCache[product] || [];
+  const rows = variants.map(v => `
+    <div style="display:grid;grid-template-columns:1fr 90px;gap:8px;align-items:center;margin-bottom:4px">
+      <div style="font-size:12px;color:var(--t2);padding-left:4px">${v.label}</div>
+      <input type="number" min="0" placeholder="0"
+             data-product="${product}"
+             data-model="${v.model || ''}"
+             data-color="${v.color || ''}"
+             class="shp-qty-input"
+             oninput="updateShipmentTotal()"
+             style="background:var(--s2);border:1px solid var(--b1);border-radius:4px;
+                    padding:5px 8px;color:var(--t1);font-size:12px;text-align:right;
+                    font-family:var(--mono);width:100%;box-sizing:border-box">
+    </div>`).join('');
+
+  const block = document.createElement('div');
+  block.dataset.productBlock = product;
+  block.style.cssText = 'margin-bottom:12px;border:1px solid var(--b1);border-radius:6px;overflow:hidden';
+  block.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:7px 12px;background:var(--s3);border-bottom:1px solid var(--b1)">
+      <div style="font-size:12px;font-weight:700;letter-spacing:0.06em">${product.toUpperCase()}</div>
+      <button onclick="removeShipmentProduct('${product}')"
+        style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:18px;
+               line-height:1;padding:0 4px">×</button>
+    </div>
+    <div style="padding:10px 12px">${rows}</div>`;
+  container.appendChild(block);
+  updateShipmentTotal();
 }
 
 function removeShipmentProduct(product) {
   delete shipmentPickerQueue[product];
-  renderShipmentManifestPicker();
+  // Remove only this product's block from the DOM
+  const block = document.querySelector(`[data-product-block="${product}"]`);
+  if (block) block.remove();
+  // Show placeholder if nothing left
+  const container = document.getElementById('newShpManifest');
+  if (container && !Object.keys(shipmentPickerQueue).length) {
+    container.innerHTML = '<div class="shp-placeholder" style="font-size:12px;color:var(--t3);padding:4px 0">No products added yet</div>';
+  }
+  updateShipmentTotal();
 }
 
 function renderShipmentManifestPicker() {
+  // Called only on modal open to reset — clears and shows placeholder
   const container = document.getElementById('newShpManifest');
-  const totalEl   = document.getElementById('newShpTotal');
-  if (!container) return;
-
-  const products = Object.keys(shipmentPickerQueue);
-  if (!products.length) {
-    container.innerHTML = '<div style="font-size:12px;color:var(--t3);padding:4px 0">No products added yet</div>';
-    if (totalEl) totalEl.textContent = '';
-    return;
-  }
-
-  container.innerHTML = products.map(product => {
-    const variants = shipmentProductCache[product] || [];
-    const rows = variants.map(v => `
-      <div style="display:grid;grid-template-columns:1fr 90px;gap:8px;align-items:center;margin-bottom:4px">
-        <div style="font-size:12px;color:var(--t2);padding-left:4px">${v.label}</div>
-        <input type="number" min="0" placeholder="0"
-               data-product="${product}"
-               data-model="${v.model || ''}"
-               data-color="${v.color || ''}"
-               class="shp-qty-input"
-               oninput="updateShipmentTotal()"
-               style="background:var(--s2);border:1px solid var(--b1);border-radius:4px;
-                      padding:5px 8px;color:var(--t1);font-size:12px;text-align:right;
-                      font-family:var(--mono);width:100%;box-sizing:border-box">
-      </div>`).join('');
-
-    return `
-      <div style="margin-bottom:12px;border:1px solid var(--b1);border-radius:6px;overflow:hidden">
-        <div style="display:flex;align-items:center;justify-content:space-between;
-                    padding:7px 12px;background:var(--s3);border-bottom:1px solid var(--b1)">
-          <div style="font-size:12px;font-weight:700;letter-spacing:0.06em">${product.toUpperCase()}</div>
-          <button onclick="removeShipmentProduct('${product}')"
-            style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:18px;
-                   line-height:1;padding:0 4px">×</button>
-        </div>
-        <div style="padding:10px 12px">${rows}</div>
-      </div>`;
-  }).join('');
-
+  if (container) container.innerHTML = '<div class="shp-placeholder" style="font-size:12px;color:var(--t3);padding:4px 0">No products added yet</div>';
   updateShipmentTotal();
 }
 
