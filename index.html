@@ -5418,6 +5418,12 @@ function renderShipmentsTable(shipments, el) {
                        border-radius:4px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer">
                 Cancel
               </button>` : ''}
+            ${['draft','packing'].includes(s.status) ? `
+              <button onclick="editShipmentAction('${s.id}')"
+                style="background:var(--s3);color:var(--yellow);border:1px solid var(--yellow);
+                       border-radius:4px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer">
+                Edit
+              </button>` : ''}
             ${s.status === 'draft' ? `
               <button onclick="deleteShipmentAction('${s.id}','${s.shipment_no}')"
                 style="background:var(--s3);color:var(--red);border:1px solid var(--red);
@@ -5443,6 +5449,128 @@ async function deleteShipmentAction(id, ref) {
   const res = await apiPost('deleteShipment', { shipment_id: id });
   if (res.ok) { showToast(`${ref} deleted`); loadShipments(); }
   else showToast(res.error || 'Failed to delete', 'error');
+}
+
+async function editShipmentAction(id) {
+  await loadShipmentProductData();
+  // Load current shipment data
+  const [shpRes, linesRes] = await Promise.all([
+    api('getDispatchShipments', {}),
+    api('getShipmentLines', { shipment_id: id }),
+  ]);
+  const shp   = shpRes.ok   ? shpRes.data.find(s => s.id === id)   : null;
+  const lines = linesRes.ok ? linesRes.data : [];
+  if (!shp) { showToast('Shipment not found', 'error'); return; }
+
+  // Group existing lines by product
+  const existingQtys = {};
+  for (const l of lines) {
+    const key = [l.product, l.model || '', l.color || ''].join('|');
+    existingQtys[key] = { target_qty: l.target_qty, packed_qty: l.packed_qty };
+  }
+
+  // Build variant rows for products already in manifest
+  const products = [...new Set(lines.map(l => l.product))];
+  const productBlocks = products.map(product => {
+    const variants = shipmentProductCache[product] || [];
+    const rows = variants.map(v => {
+      const key = [product, v.model || '', v.color || ''].join('|');
+      const existing = existingQtys[key];
+      const qty     = existing?.target_qty || 0;
+      const packed  = existing?.packed_qty || 0;
+      return `
+        <div style="display:grid;grid-template-columns:1fr 90px;gap:8px;align-items:center;margin-bottom:4px">
+          <div style="font-size:12px;color:var(--t2);padding-left:4px">
+            ${v.label}
+            ${packed > 0 ? `<span style="font-size:9px;color:var(--orange);margin-left:6px">${packed} packed</span>` : ''}
+          </div>
+          <input type="number" min="${packed}" value="${qty}" placeholder="0"
+                 data-product="${product}"
+                 data-model="${v.model || ''}"
+                 data-color="${v.color || ''}"
+                 data-packed="${packed}"
+                 class="shp-edit-qty"
+                 oninput="updateEditTotal()"
+                 style="background:var(--s2);border:1px solid var(--b1);border-radius:4px;
+                        padding:5px 8px;color:var(--t1);font-size:12px;text-align:right;
+                        font-family:var(--mono);width:100%;box-sizing:border-box">
+        </div>`;
+    }).join('');
+    return `
+      <div style="margin-bottom:12px;border:1px solid var(--b1);border-radius:6px;overflow:hidden">
+        <div style="padding:7px 12px;background:var(--s3);border-bottom:1px solid var(--b1);
+                    font-size:12px;font-weight:700;letter-spacing:0.06em">${product.toUpperCase()}</div>
+        <div style="padding:10px 12px">${rows}</div>
+      </div>`;
+  }).join('');
+
+  showModal(`Edit ${shp.shipment_no}`, `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Scheduled Date</label>
+        <input id="editShpDate" type="date" value="${shp.scheduled_date || ''}"
+          style="width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                 padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Notes</label>
+        <input id="editShpNotes" type="text" value="${shp.notes || ''}" placeholder="Optional"
+          style="width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                 padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
+      </div>
+      <div style="border-top:1px solid var(--b1);padding-top:12px">
+        <div style="font-size:10px;color:var(--t3);letter-spacing:0.12em;margin-bottom:10px">
+          MANIFEST — edit quantities (cannot go below packed count)
+        </div>
+        ${productBlocks}
+        <div id="editShpTotal" style="font-size:11px;color:var(--t3);text-align:right;margin-top:4px"></div>
+      </div>
+    </div>`,
+    { label: 'Save Changes', fn: () => submitEditShipment(id, shp.shipment_no) }
+  );
+  updateEditTotal();
+}
+
+function updateEditTotal() {
+  const el = document.getElementById('editShpTotal');
+  if (!el) return;
+  let total = 0;
+  document.querySelectorAll('.shp-edit-qty').forEach(inp => { total += parseInt(inp.value) || 0; });
+  el.textContent = total > 0 ? `Total: ${total} units` : '';
+}
+
+async function submitEditShipment(id, ref) {
+  const date  = document.getElementById('editShpDate')?.value  || null;
+  const notes = document.getElementById('editShpNotes')?.value || null;
+
+  // Collect lines
+  const lines = [];
+  document.querySelectorAll('.shp-edit-qty').forEach(inp => {
+    const qty    = parseInt(inp.value) || 0;
+    const packed = parseInt(inp.dataset.packed) || 0;
+    if (qty < packed) { showToast(`Cannot set qty below packed count (${packed})`, 'error'); return; }
+    lines.push({
+      product:    inp.dataset.product,
+      model:      inp.dataset.model  || null,
+      color:      inp.dataset.color  || null,
+      target_qty: qty,
+      packed_qty: packed,
+    });
+  });
+  if (!lines.length) { showToast('No lines found', 'error'); return; }
+
+  // Update metadata and lines in parallel
+  const [metaRes, linesRes] = await Promise.all([
+    apiPost('updateShipment', { shipment_id: id, scheduled_date: date, notes }),
+    apiPost('updateShipmentLines', { shipment_id: id, lines }),
+  ]);
+
+  if (!metaRes.ok)  { showToast(metaRes.error  || 'Failed to update shipment', 'error'); return; }
+  if (!linesRes.ok) { showToast(linesRes.error || 'Failed to update lines', 'error'); return; }
+
+  closeModal();
+  showToast(`${ref} updated`);
+  loadShipments();
 }
 
 async function markShipmentShipped(shipmentId, shipmentNo) {
