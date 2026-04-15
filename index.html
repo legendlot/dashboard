@@ -877,6 +877,18 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
   <!-- SCANS TAB -->
   <div id="tab-scans" class="content" style="display:none">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <input type="date" id="scanDateFrom" onchange="loadScans()"
+        style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+               padding:6px 10px;color:var(--t1);font-family:var(--mono);font-size:12px">
+      <span style="color:var(--t3);font-size:11px">→</span>
+      <input type="date" id="scanDateTo" onchange="loadScans()"
+        style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+               padding:6px 10px;color:var(--t1);font-family:var(--mono);font-size:12px">
+      <button onclick="setScanDatePreset('today')"  id="scanPresetToday"  class="dsp-preset-btn active">Today</button>
+      <button onclick="setScanDatePreset('week')"   id="scanPresetWeek"   class="dsp-preset-btn">This Week</button>
+      <button onclick="setScanDatePreset('month')"  id="scanPresetMonth"  class="dsp-preset-btn">This Month</button>
+    </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
       <div style="display:flex;gap:6px;flex-wrap:wrap" id="scanActivityFilters">
         <button class="scan-filter-btn active" data-activity="" onclick="setScanFilter('')">All</button>
@@ -3269,13 +3281,20 @@ async function loadScans() {
   const el = document.getElementById('scansTable');
   el.innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
 
-  const date       = document.getElementById('dateFrom')?.value || todayISO();
+  // Initialise date inputs on first load
+  const fromEl = document.getElementById('scanDateFrom');
+  const toEl   = document.getElementById('scanDateTo');
+  if (fromEl && !fromEl.value) fromEl.value = todayISO();
+  if (toEl   && !toEl.value)   toEl.value   = todayISO();
+
+  const dateFrom   = fromEl?.value || todayISO();
+  const dateTo     = toEl?.value   || todayISO();
   const showVoided = document.getElementById('scanShowVoided')?.checked;
 
   const [res, summaryRes] = await Promise.all([
-    fetch(API + '?' + new URLSearchParams({ action: 'getAllScans', date }).toString(),
+    fetch(API + '?' + new URLSearchParams({ action: 'getAllScans', date_from: dateFrom, date_to: dateTo }).toString(),
       { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.json()),
-    fetch(API + '?' + new URLSearchParams({ action: 'getScanSummary', date }).toString(),
+    fetch(API + '?' + new URLSearchParams({ action: 'getScanSummary', date: dateFrom }).toString(),
       { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.json()),
   ]);
 
@@ -3287,6 +3306,27 @@ async function loadScans() {
   allScans = res.data || [];
   renderScanSummary(summaryRes.ok ? summaryRes.data : null);
   renderScans();
+}
+
+function setScanDatePreset(preset) {
+  const today = todayISO();
+  let from = today, to = today;
+  if (preset === 'week') {
+    const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1);
+    from = d.toISOString().split('T')[0];
+  } else if (preset === 'month') {
+    from = today.slice(0,7) + '-01';
+  }
+  const fromEl = document.getElementById('scanDateFrom');
+  const toEl   = document.getElementById('scanDateTo');
+  if (fromEl) fromEl.value = from;
+  if (toEl)   toEl.value   = to;
+  // Update active preset button
+  ['today','week','month'].forEach(p => {
+    const btn = document.getElementById('scanPreset' + p.charAt(0).toUpperCase() + p.slice(1));
+    if (btn) btn.classList.toggle('active', p === preset);
+  });
+  loadScans();
 }
 
 function renderScanSummary(summary) {
