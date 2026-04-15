@@ -5177,6 +5177,24 @@ async function loadShipments() {
 }
 
 let shipmentDetailId = null;
+let shipmentProductCache = {}; // { 'Flare': [{model,color,label}, ...], ... }
+let shipmentPickerQueue  = {}; // { 'Flare': true } — products added to current modal
+
+async function loadShipmentProductData() {
+  if (Object.keys(shipmentProductCache).length) return; // already loaded
+  const res = await api('getProductCodes', {});
+  if (!res.ok) return;
+  const grouped = {};
+  for (const row of res.data) {
+    if (!grouped[row.product]) grouped[row.product] = [];
+    grouped[row.product].push({
+      model: row.model || null,
+      color: row.color || null,
+      label: [row.model, row.color].filter(Boolean).join(' ') || row.product,
+    });
+  }
+  shipmentProductCache = grouped;
+}
 
 async function openShipmentDetail(shipmentId) {
   shipmentDetailId = shipmentId;
@@ -5188,13 +5206,14 @@ async function refreshShipmentDetail() {
   const modalBody = document.getElementById('genericModalBody');
   if (!modalBody) return;
 
-  const [shpRes, boxesRes] = await Promise.all([
+  const [shpRes, boxesRes, linesRes] = await Promise.all([
     api('getDispatchShipments', {}),
-    api('getShipmentBoxes', { shipment_id: shipmentDetailId }),
+    api('getShipmentBoxes',     { shipment_id: shipmentDetailId }),
+    api('getShipmentLines',     { shipment_id: shipmentDetailId }),
   ]);
-
-  const shipment = shpRes.ok ? shpRes.data.find(s => s.id === shipmentDetailId) : null;
-  const boxes    = boxesRes.ok ? boxesRes.data : [];
+  const shipment  = shpRes.ok   ? shpRes.data.find(s => s.id === shipmentDetailId) : null;
+  const boxes     = boxesRes.ok ? boxesRes.data  : [];
+  const linesData = linesRes.ok ? linesRes.data  : [];
 
   if (!shipment) { modalBody.innerHTML = '<div class="empty">Shipment not found</div>'; return; }
 
@@ -5223,6 +5242,40 @@ async function refreshShipmentDetail() {
           ${shipment.status?.toUpperCase() || '—'}
         </div>
       </div>
+    </div>
+
+    <div style="font-size:10px;color:var(--t3);letter-spacing:0.12em;margin-bottom:8px">MANIFEST</div>
+    <div style="margin-bottom:16px">
+      ${linesData.length ? `
+        <table style="width:100%;border-collapse:collapse;margin-bottom:4px">
+          <thead>
+            <tr style="background:var(--s3)">
+              <th style="padding:5px 12px;text-align:left;font-size:9px;color:var(--t3);letter-spacing:0.1em">PRODUCT</th>
+              <th style="padding:5px 12px;text-align:right;font-size:9px;color:var(--t3)">TARGET</th>
+              <th style="padding:5px 12px;text-align:right;font-size:9px;color:var(--t3)">PACKED</th>
+              <th style="padding:5px 12px;font-size:9px;color:var(--t3)">PROGRESS</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${linesData.map(l => {
+              const pct     = l.target_qty > 0 ? Math.min(100, Math.round(l.packed_qty / l.target_qty * 100)) : 0;
+              const done    = l.packed_qty >= l.target_qty;
+              const barCol  = done ? 'var(--green)' : 'var(--yellow)';
+              const nameStr = [l.product, l.model, l.color].filter(Boolean).join(' ');
+              return `<tr style="border-top:1px solid var(--b1)">
+                <td style="padding:7px 12px;font-size:11px">${nameStr}</td>
+                <td style="padding:7px 12px;text-align:right;font-family:var(--mono);font-size:11px">${l.target_qty}</td>
+                <td style="padding:7px 12px;text-align:right;font-family:var(--mono);font-size:11px;
+                            color:${done ? 'var(--green)' : 'var(--t1)'}">${l.packed_qty}</td>
+                <td style="padding:7px 12px">
+                  <div style="background:var(--s3);border-radius:3px;height:6px;width:100%;min-width:60px">
+                    <div style="background:${barCol};border-radius:3px;height:6px;width:${pct}%;transition:width .3s"></div>
+                  </div>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>` : '<div style="font-size:12px;color:var(--t3)">No manifest lines</div>'}
     </div>
 
     <div style="font-size:10px;color:var(--t3);letter-spacing:0.12em;margin-bottom:10px">
@@ -5386,12 +5439,19 @@ async function markShipmentShipped(shipmentId, shipmentNo) {
 }
 
 // ── Create shipment modal ──────────────────────────────
-function showCreateShipmentModal() {
+async function showCreateShipmentModal() {
+  await loadShipmentProductData();
+  shipmentPickerQueue = {};
+
   const channelOpts = dspChannelCache.map(c =>
     `<option value="${c.id}" data-fulfillment="${c.fulfillment_model}">${c.name} (${c.type})</option>`
   ).join('');
 
-  showModal('Create Shipment', `
+  const productOpts = Object.keys(shipmentProductCache).map(p =>
+    `<option value="${p}">${p}</option>`
+  ).join('');
+
+  showModal('New Shipment', `
     <div style="display:flex;flex-direction:column;gap:12px">
       <div>
         <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Channel *</label>
@@ -5415,20 +5475,101 @@ function showCreateShipmentModal() {
                  border-radius:6px;padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
       </div>
       <div>
-        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Expected Units</label>
-        <input id="newShpExpected" type="number" min="1" placeholder="e.g. 200"
-          style="width:100%;background:var(--s2);border:1px solid var(--b1);
-                 border-radius:6px;padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
-      </div>
-      <div>
         <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Notes</label>
         <input id="newShpNotes" type="text" placeholder="Optional"
           style="width:100%;background:var(--s2);border:1px solid var(--b1);
                  border-radius:6px;padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
       </div>
+
+      <div style="border-top:1px solid var(--b1);padding-top:12px">
+        <div style="font-size:10px;color:var(--t3);letter-spacing:0.12em;margin-bottom:10px">MANIFEST</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <select id="newShpProductSel"
+            style="flex:1;background:var(--s2);border:1px solid var(--b1);
+                   border-radius:6px;padding:8px 12px;color:var(--t1);font-size:13px">
+            <option value="">Select product to add...</option>
+            ${productOpts}
+          </select>
+          <button onclick="addShipmentProduct()"
+            style="background:var(--yellow);color:#000;border:none;border-radius:6px;
+                   padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+            + Add
+          </button>
+        </div>
+        <div id="newShpManifest"></div>
+        <div id="newShpTotal" style="font-size:11px;color:var(--t3);text-align:right;margin-top:8px"></div>
+      </div>
     </div>`,
-    { label:'Create', fn: submitCreateShipment }
+    { label: 'Create Shipment', fn: submitCreateShipment }
   );
+}
+
+function addShipmentProduct() {
+  const sel     = document.getElementById('newShpProductSel');
+  const product = sel?.value;
+  if (!product) return;
+  if (shipmentPickerQueue[product]) { showToast(product + ' already added', 'warn'); return; }
+  shipmentPickerQueue[product] = true;
+  sel.value = '';
+  renderShipmentManifestPicker();
+}
+
+function removeShipmentProduct(product) {
+  delete shipmentPickerQueue[product];
+  renderShipmentManifestPicker();
+}
+
+function renderShipmentManifestPicker() {
+  const container = document.getElementById('newShpManifest');
+  const totalEl   = document.getElementById('newShpTotal');
+  if (!container) return;
+
+  const products = Object.keys(shipmentPickerQueue);
+  if (!products.length) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--t3);padding:4px 0">No products added yet</div>';
+    if (totalEl) totalEl.textContent = '';
+    return;
+  }
+
+  container.innerHTML = products.map(product => {
+    const variants = shipmentProductCache[product] || [];
+    const rows = variants.map(v => `
+      <div style="display:grid;grid-template-columns:1fr 90px;gap:8px;align-items:center;margin-bottom:4px">
+        <div style="font-size:12px;color:var(--t2);padding-left:4px">${v.label}</div>
+        <input type="number" min="0" placeholder="0"
+               data-product="${product}"
+               data-model="${v.model || ''}"
+               data-color="${v.color || ''}"
+               class="shp-qty-input"
+               oninput="updateShipmentTotal()"
+               style="background:var(--s2);border:1px solid var(--b1);border-radius:4px;
+                      padding:5px 8px;color:var(--t1);font-size:12px;text-align:right;
+                      font-family:var(--mono);width:100%;box-sizing:border-box">
+      </div>`).join('');
+
+    return `
+      <div style="margin-bottom:12px;border:1px solid var(--b1);border-radius:6px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    padding:7px 12px;background:var(--s3);border-bottom:1px solid var(--b1)">
+          <div style="font-size:12px;font-weight:700;letter-spacing:0.06em">${product.toUpperCase()}</div>
+          <button onclick="removeShipmentProduct('${product}')"
+            style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:18px;
+                   line-height:1;padding:0 4px">×</button>
+        </div>
+        <div style="padding:10px 12px">${rows}</div>
+      </div>`;
+  }).join('');
+
+  updateShipmentTotal();
+}
+
+function updateShipmentTotal() {
+  const totalEl = document.getElementById('newShpTotal');
+  if (!totalEl) return;
+  const inputs = document.querySelectorAll('.shp-qty-input');
+  let total = 0;
+  inputs.forEach(inp => { total += parseInt(inp.value) || 0; });
+  totalEl.textContent = total > 0 ? `Total: ${total} units` : '';
 }
 
 function toggleWarehouseField() {
@@ -5441,18 +5582,35 @@ function toggleWarehouseField() {
 async function submitCreateShipment() {
   const channelId = document.getElementById('newShpChannel')?.value;
   if (!channelId) { showToast('Select a channel', 'error'); return; }
-  const expVal = document.getElementById('newShpExpected')?.value;
+
+  // Collect non-zero lines
+  const inputs = document.querySelectorAll('.shp-qty-input');
+  const lines  = [];
+  inputs.forEach(inp => {
+    const qty = parseInt(inp.value) || 0;
+    if (qty <= 0) return;
+    lines.push({
+      product:    inp.dataset.product,
+      model:      inp.dataset.model  || null,
+      color:      inp.dataset.color  || null,
+      target_qty: qty,
+    });
+  });
+  if (!lines.length) { showToast('Enter at least one quantity', 'error'); return; }
+
   const res = await apiPost('createShipment', {
     channel_id:            channelId,
     destination_warehouse: document.getElementById('newShpWarehouse')?.value || null,
     scheduled_date:        document.getElementById('newShpDate')?.value      || null,
     notes:                 document.getElementById('newShpNotes')?.value      || null,
-    expected_units:        expVal ? parseInt(expVal) : null,
+    lines,
   });
+
   if (res.ok) {
     closeModal();
-    showToast(`${res.data.shipment_no} created`);
+    showToast(`${res.data.shipment_no} created — ${lines.length} product line${lines.length !== 1 ? 's' : ''}`);
     loadShipments();
+    loadDispatchCards();
   } else {
     showToast(res.error || 'Failed to create', 'error');
   }
