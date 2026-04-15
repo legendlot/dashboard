@@ -5176,43 +5176,199 @@ async function loadShipments() {
   renderShipmentsTable(res.data, el);
 }
 
+let shipmentDetailId = null;
+
+async function openShipmentDetail(shipmentId) {
+  shipmentDetailId = shipmentId;
+  showModal('Shipment Detail', '<div class="loading"><div class="spinner"></div></div>', { label: 'Close', fn: closeModal });
+  await refreshShipmentDetail();
+}
+
+async function refreshShipmentDetail() {
+  const modalBody = document.getElementById('genericModalBody');
+  if (!modalBody) return;
+
+  const [shpRes, boxesRes] = await Promise.all([
+    api('getDispatchShipments', {}),
+    api('getShipmentBoxes', { shipment_id: shipmentDetailId }),
+  ]);
+
+  const shipment = shpRes.ok ? shpRes.data.find(s => s.id === shipmentDetailId) : null;
+  const boxes    = boxesRes.ok ? boxesRes.data : [];
+
+  if (!shipment) { modalBody.innerHTML = '<div class="empty">Shipment not found</div>'; return; }
+
+  const statusColor = { draft:'var(--t3)', packing:'var(--orange)', ready:'var(--yellow)', shipped:'var(--green)' };
+
+  modalBody.innerHTML = `
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:120px;background:var(--s2);border-radius:8px;padding:12px 16px">
+        <div style="font-size:10px;color:var(--t3);letter-spacing:0.1em;margin-bottom:4px">CHANNEL</div>
+        <div style="font-size:13px;font-weight:700">${shipment.dispatch_channels?.name || '—'}</div>
+        <div style="font-size:10px;color:var(--t3)">${shipment.dispatch_channels?.fulfillment_model || ''}</div>
+      </div>
+      <div style="flex:1;min-width:100px;background:var(--s2);border-radius:8px;padding:12px 16px">
+        <div style="font-size:10px;color:var(--t3);letter-spacing:0.1em;margin-bottom:4px">POOL / TARGET</div>
+        <div style="font-size:13px;font-weight:700;color:${shipment.is_ready?'var(--green)':'var(--t1)'}">
+          ${shipment.pool_count || 0}${shipment.expected_units ? ` / ${shipment.expected_units}` : ''}
+        </div>
+      </div>
+      <div style="flex:1;min-width:100px;background:var(--s2);border-radius:8px;padding:12px 16px">
+        <div style="font-size:10px;color:var(--t3);letter-spacing:0.1em;margin-bottom:4px">PACKED</div>
+        <div style="font-size:13px;font-weight:700">${shipment.packed_count || 0}</div>
+      </div>
+      <div style="flex:1;min-width:100px;background:var(--s2);border-radius:8px;padding:12px 16px">
+        <div style="font-size:10px;color:var(--t3);letter-spacing:0.1em;margin-bottom:4px">STATUS</div>
+        <div style="font-size:13px;font-weight:700;color:${statusColor[shipment.status]||'var(--t1)'}">
+          ${shipment.status?.toUpperCase() || '—'}
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:10px;color:var(--t3);letter-spacing:0.12em;margin-bottom:10px">
+      BOXES (${boxes.length})
+    </div>
+
+    ${boxes.length ? boxes.map(b => renderBoxCard(b)).join('') : '<div style="color:var(--t3);font-size:12px">No boxes yet — start packing on the scanner</div>'}
+  `;
+}
+
+function renderBoxCard(box) {
+  const statusColor = { open:'var(--green)', packed:'var(--yellow)', shipped:'var(--t3)' };
+  return `
+    <div style="background:var(--s2);border:1px solid var(--b1);border-radius:8px;
+                margin-bottom:8px;overflow:hidden">
+      <div style="padding:10px 14px;display:flex;align-items:center;gap:10px;
+                  cursor:pointer;border-bottom:1px solid var(--b1)"
+           onclick="toggleBoxUnits('${box.id}')">
+        <div style="flex:1">
+          <span style="font-family:var(--mono);font-weight:700;font-size:12px">${box.box_ref}</span>
+          <span style="font-size:10px;color:var(--t3);margin-left:8px">${box.unit_count} units</span>
+        </div>
+        <span style="font-size:9px;font-weight:700;color:${statusColor[box.status]||'var(--t3)'}">${box.status?.toUpperCase()}</span>
+        ${box.status !== 'shipped' && box.status === 'packed'
+          ? `<button onclick="event.stopPropagation();reopenBoxDash('${box.id}')"
+               style="background:var(--s3);color:var(--t2);border:1px solid var(--b1);
+                      border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer">
+               Reopen
+             </button>`
+          : ''}
+      </div>
+      <div id="boxUnits_${box.id}" style="display:none"></div>
+    </div>`;
+}
+
+async function toggleBoxUnits(boxId) {
+  const el = document.getElementById(`boxUnits_${boxId}`);
+  if (!el) return;
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+
+  el.style.display = 'block';
+  el.innerHTML = '<div style="padding:12px;color:var(--t3);font-size:11px">Loading...</div>';
+
+  const res = await api('getBoxDetail', { box_id: boxId });
+  if (!res.ok) { el.innerHTML = '<div style="padding:12px;color:var(--red);font-size:11px">Failed to load</div>'; return; }
+
+  const units = res.data.units || [];
+  if (!units.length) { el.innerHTML = '<div style="padding:12px;color:var(--t3);font-size:11px">No units in this box</div>'; return; }
+
+  el.innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="background:var(--s3)">
+          <th style="padding:6px 14px;text-align:left;font-size:9px;color:var(--t3);letter-spacing:0.1em">UNIT</th>
+          <th style="padding:6px 14px;text-align:left;font-size:9px;color:var(--t3)">PRODUCT</th>
+          <th style="padding:6px 14px;text-align:left;font-size:9px;color:var(--t3)">ADDED</th>
+          <th style="padding:6px 4px;font-size:9px;color:var(--t3)"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${units.filter(u => u.is_active).map(u => `
+          <tr style="border-top:1px solid var(--b1)">
+            <td style="padding:7px 14px;font-family:var(--mono);font-size:10px">${u.batch_label}</td>
+            <td style="padding:7px 14px;font-size:11px">${[u.product,u.model,u.color].filter(Boolean).join(' · ')}</td>
+            <td style="padding:7px 14px;font-size:10px;color:var(--t3)">
+              ${new Date(u.added_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}
+            </td>
+            <td style="padding:7px 4px;text-align:right">
+              <button onclick="removeBoxUnit('${u.id}','${boxId}')"
+                style="background:none;border:none;color:var(--t3);font-size:14px;
+                       cursor:pointer;padding:0 10px;line-height:1" title="Remove from box">×</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function reopenBoxDash(boxId) {
+  const res = await apiPost('reopenBox', { box_id: boxId });
+  if (res.ok) { showToast('Box reopened'); await refreshShipmentDetail(); }
+  else showToast(res.error || 'Failed to reopen', 'error');
+}
+
+async function removeBoxUnit(boxUnitId, boxId) {
+  if (!confirm('Remove this unit from the box? It will return to the allocated pool.')) return;
+  const removedBy = (typeof currentUser !== 'undefined' && currentUser?.email) || null;
+  const res = await apiPost('removeBoxUnit', { box_unit_id: boxUnitId, removed_by: removedBy });
+  if (res.ok) {
+    showToast('Unit removed');
+    await refreshShipmentDetail();
+  } else {
+    showToast(res.error || 'Failed to remove unit', 'error');
+  }
+}
+
 function renderShipmentsTable(shipments, el) {
   if (!shipments.length) { el.innerHTML = '<div class="empty">No shipments yet</div>'; return; }
   const statusBadge = s => {
-    const map = { draft:['DRAFT','var(--t2)'], ready:['READY','var(--yellow)'], shipped:['SHIPPED','var(--green)'] };
-    const [label, col] = map[s] || [s, 'var(--t3)'];
+    const map = {
+      draft:   ['DRAFT',   'var(--t3)'],
+      packing: ['PACKING', 'var(--orange)'],
+      ready:   ['READY',   'var(--yellow)'],
+      shipped: ['SHIPPED', 'var(--green)'],
+    };
+    const [label, col] = map[s] || [s?.toUpperCase(), 'var(--t3)'];
     return `<span style="font-size:9px;font-weight:700;color:${col}">${label}</span>`;
   };
   el.innerHTML = `<table>
     <thead><tr>
-      <th>Shipment</th><th>Channel</th><th>Destination</th>
-      <th>Scheduled</th><th>Status</th><th>Shipped At</th><th>Actions</th>
+      <th>Ref</th><th>Channel</th><th>Pool</th><th>Packed</th>
+      <th>Scheduled</th><th>Status</th><th>Actions</th>
     </tr></thead>
     <tbody>
-      ${shipments.map(s => `<tr>
-        <td style="font-family:var(--mono);font-weight:700">${s.shipment_no}</td>
-        <td>${s.dispatch_channels?.name || '—'}
-            <span style="font-size:9px;color:var(--t3);margin-left:4px">
-              ${s.dispatch_channels?.fulfillment_model || ''}
-            </span></td>
-        <td style="color:var(--t2)">${s.destination_warehouse || '—'}</td>
-        <td style="font-family:var(--mono);font-size:11px;color:var(--t2)">
-          ${s.scheduled_date ? new Date(s.scheduled_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—'}
-        </td>
-        <td>${statusBadge(s.status)}</td>
-        <td style="font-family:var(--mono);font-size:10px;color:var(--t2)">
-          ${s.shipped_at ? new Date(s.shipped_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}
-        </td>
-        <td style="display:flex;gap:6px">
-          ${s.status !== 'shipped'
-            ? `<button onclick="markShipmentShipped('${s.id}','${s.shipment_no}')"
-                 style="background:var(--green);color:#000;border:none;border-radius:4px;
-                        padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer">
-                 Mark Shipped
-               </button>`
-            : ''}
-        </td>
-      </tr>`).join('')}
+      ${shipments.map(s => {
+        const exp     = s.expected_units;
+        const pool    = s.pool_count || 0;
+        const packed  = s.packed_count || 0;
+        const isReady = s.is_ready;
+        return `<tr style="cursor:pointer" onclick="openShipmentDetail('${s.id}')">
+          <td style="font-family:var(--mono);font-weight:700">
+            ${s.shipment_no}
+            ${isReady && s.status !== 'shipped' ? `<span style="font-size:8px;font-weight:700;color:var(--green);margin-left:6px">✓ READY</span>` : ''}
+          </td>
+          <td>${s.dispatch_channels?.name || '—'}
+            <span style="font-size:9px;color:var(--t3);margin-left:4px">${s.dispatch_channels?.fulfillment_model || ''}</span>
+          </td>
+          <td style="font-family:var(--mono);font-size:11px">
+            <span style="color:${isReady ? 'var(--green)' : 'var(--t1)'}">${pool}</span>
+            ${exp ? `<span style="color:var(--t3)"> / ${exp}</span>` : ''}
+          </td>
+          <td style="font-family:var(--mono);font-size:11px">${packed}</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--t2)">
+            ${s.scheduled_date ? new Date(s.scheduled_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—'}
+          </td>
+          <td>${statusBadge(s.status)}</td>
+          <td onclick="event.stopPropagation()" style="display:flex;gap:6px">
+            ${s.status !== 'shipped'
+              ? `<button onclick="markShipmentShipped('${s.id}','${s.shipment_no}')"
+                   style="background:var(--green);color:#000;border:none;border-radius:4px;
+                          padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer">
+                   Mark Shipped
+                 </button>`
+              : ''}
+          </td>
+        </tr>`;
+      }).join('')}
     </tbody>
   </table>`;
 }
@@ -5259,6 +5415,12 @@ function showCreateShipmentModal() {
                  border-radius:6px;padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
       </div>
       <div>
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Expected Units</label>
+        <input id="newShpExpected" type="number" min="1" placeholder="e.g. 200"
+          style="width:100%;background:var(--s2);border:1px solid var(--b1);
+                 border-radius:6px;padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
+      </div>
+      <div>
         <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Notes</label>
         <input id="newShpNotes" type="text" placeholder="Optional"
           style="width:100%;background:var(--s2);border:1px solid var(--b1);
@@ -5279,11 +5441,13 @@ function toggleWarehouseField() {
 async function submitCreateShipment() {
   const channelId = document.getElementById('newShpChannel')?.value;
   if (!channelId) { showToast('Select a channel', 'error'); return; }
+  const expVal = document.getElementById('newShpExpected')?.value;
   const res = await apiPost('createShipment', {
     channel_id:            channelId,
     destination_warehouse: document.getElementById('newShpWarehouse')?.value || null,
     scheduled_date:        document.getElementById('newShpDate')?.value      || null,
-    notes:                 document.getElementById('newShpNotes')?.value      || null
+    notes:                 document.getElementById('newShpNotes')?.value      || null,
+    expected_units:        expVal ? parseInt(expVal) : null,
   });
   if (res.ok) {
     closeModal();
