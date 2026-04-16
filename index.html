@@ -704,6 +704,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
       </button>
       <div class="nav-dropdown" id="navd-dispatch">
         <div class="nav-dropdown-item" data-tab="dispatch"           onclick="selectNavTab('dispatch')">Overview</div>
+        <div class="nav-dropdown-item" data-tab="dispatch-pipeline"  onclick="selectNavTab('dispatch-pipeline')">Pipeline</div>
         <div class="nav-dropdown-item" data-tab="dispatch-shipments" onclick="selectNavTab('dispatch-shipments')">Shipments</div>
         <div class="nav-dropdown-item" data-tab="dispatch-channels"  onclick="selectNavTab('dispatch-channels')">Channel Master</div>
       </div>
@@ -1247,6 +1248,22 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
   </div>
 
+  <!-- ══ DISPATCH: PIPELINE ═══════════════════════════════════ -->
+  <div id="tab-dispatch-pipeline" class="content" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="sec-label" style="margin:0">Dispatch Pipeline</div>
+      <button onclick="loadDispatchPipeline()"
+        style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+               padding:7px 14px;font-family:var(--mono);font-size:11px;font-weight:700;
+               color:var(--t2);cursor:pointer;letter-spacing:0.06em">
+        ↺ Refresh
+      </button>
+    </div>
+    <div id="pipelineTable">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+  </div>
+
   <!-- ══ DISPATCH: SHIPMENTS ══════════════════════════════════ -->
   <div id="tab-dispatch-shipments" class="content" style="display:none">
 
@@ -1556,7 +1573,7 @@ function updateClock() {
 const NAV_GROUPS = {
   production: ['exec','lines','qc'],
   activity:   ['scans','corrections','alerts','returns'],
-  dispatch:   ['dispatch','dispatch-shipments','dispatch-channels'],
+  dispatch:   ['dispatch','dispatch-pipeline','dispatch-shipments','dispatch-channels'],
   reporting:  ['reporting'],
   admin:      ['upc','operators','print'],
 };
@@ -1600,7 +1617,7 @@ function switchTab(tab, force = false) {
     if (btn) btn.classList.toggle('active', tabs.includes(tab));
   });
   // Show/hide content panels
-  ['exec','lines','qc','upc','scans','corrections','alerts','returns','reporting','operators','print','dispatch','dispatch-shipments','dispatch-channels'].forEach(t => {
+  ['exec','lines','qc','upc','scans','corrections','alerts','returns','reporting','operators','print','dispatch','dispatch-pipeline','dispatch-shipments','dispatch-channels'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
   });
   // Datebar — exec tab only
@@ -1681,6 +1698,7 @@ async function loadTab(tab, forceRefresh = false) {
     if (tab === 'operators')   await loadOperators();
     if (tab === 'print')       initPrintTab();
     if (tab === 'dispatch')             initDispatch();
+    if (tab === 'dispatch-pipeline')    loadDispatchPipeline();
     if (tab === 'dispatch-shipments')   { loadDispatchChannelCache().then(() => loadShipments()); }
     if (tab === 'dispatch-channels')    { loadDispatchChannelCache().then(() => loadChannelMaster()); }
     document.getElementById('lastRefresh').textContent =
@@ -5872,6 +5890,103 @@ async function submitCreateShipment() {
   } else {
     showToast(res.error || 'Failed to create', 'error');
   }
+}
+
+// ── Dispatch Pipeline ─────────────────────────────────
+const _pipelineExpanded = new Set();
+
+async function loadDispatchPipeline() {
+  const el = document.getElementById('pipelineTable');
+  if (!el) return;
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  const res = await api('getDispatchPipeline');
+  if (!res.ok) { el.innerHTML = '<div class="empty">Failed to load pipeline</div>'; return; }
+  renderPipelineTable(res.data, el);
+}
+
+function renderPipelineTable(data, el) {
+  const { products, channels } = data;
+  if (!products.length) { el.innerHTML = '<div class="empty">No units in pipeline</div>'; return; }
+
+  const thStyle = 'padding:7px 12px;text-align:right;font-size:9px;color:var(--t3);letter-spacing:0.1em;white-space:nowrap;font-weight:700';
+  const thStyleL = 'padding:7px 12px;text-align:left;font-size:9px;color:var(--t3);letter-spacing:0.1em;font-weight:700';
+  const numStyle = (n, col) => `padding:6px 12px;text-align:right;font-family:var(--mono);font-size:12px;color:${n>0?col:'var(--t3)'}`;
+
+  const channelHeaders = channels.map(ch =>
+    `<th style="${thStyle}">${ch.toUpperCase()}</th>`
+  ).join('');
+
+  const rows = products.map(p => {
+    const isExpanded = _pipelineExpanded.has(p.product);
+    const totalAlloc = Object.values(p.totals.channels).reduce((s,n)=>s+n,0);
+    const channelTotals = channels.map(ch => {
+      const n = p.totals.channels[ch] || 0;
+      return `<td style="${numStyle(n,'var(--blue)')}">${n > 0 ? n : '—'}</td>`;
+    }).join('');
+
+    const productRow = `
+      <tr style="cursor:pointer;background:var(--s2);border-top:2px solid var(--b1)"
+          onclick="togglePipelineProduct('${p.product}')">
+        <td style="padding:8px 12px;font-size:13px;font-weight:700;white-space:nowrap">
+          <span style="font-size:10px;margin-right:6px;color:var(--yellow)">${isExpanded ? '▼' : '▶'}</span>
+          ${p.product}
+        </td>
+        <td style="${numStyle(p.totals.with_production,'var(--t1)')};font-weight:700">${p.totals.with_production || '—'}</td>
+        <td style="${numStyle(p.totals.unallocated,'var(--yellow)')};font-weight:700">${p.totals.unallocated || '—'}</td>
+        <td style="${numStyle(totalAlloc,'var(--green)')};font-weight:700">${totalAlloc || '—'}</td>
+        ${channelTotals}
+      </tr>`;
+
+    if (!isExpanded) return productRow;
+
+    const variantRows = p.variants
+      .sort((a,b) => `${a.model}${a.color}`.localeCompare(`${b.model}${b.color}`))
+      .map(v => {
+        const vAlloc = Object.values(v.channels).reduce((s,n)=>s+n,0);
+        const vChannelCells = channels.map(ch => {
+          const n = v.channels[ch] || 0;
+          return `<td style="${numStyle(n,'var(--blue)')}">${n > 0 ? n : '—'}</td>`;
+        }).join('');
+        const variantLabel = [v.model, v.color].filter(Boolean).join(' · ') || '—';
+        return `
+          <tr style="background:var(--s3);border-top:1px solid var(--b1)">
+            <td style="padding:6px 12px 6px 32px;font-size:12px;color:var(--t2)">${variantLabel}</td>
+            <td style="${numStyle(v.with_production,'var(--t1)')}">${v.with_production || '—'}</td>
+            <td style="${numStyle(v.unallocated,'var(--yellow)')}">${v.unallocated || '—'}</td>
+            <td style="${numStyle(vAlloc,'var(--green)')}">${vAlloc || '—'}</td>
+            ${vChannelCells}
+          </tr>`;
+      }).join('');
+
+    return productRow + variantRows;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;min-width:600px">
+        <thead>
+          <tr style="background:var(--s3)">
+            <th style="${thStyleL}">PRODUCT / VARIANT</th>
+            <th style="${thStyle}">WITH PRODUCTION</th>
+            <th style="${thStyle}">UNALLOCATED</th>
+            <th style="${thStyle}">TOTAL ALLOCATED</th>
+            ${channelHeaders}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function togglePipelineProduct(product) {
+  if (_pipelineExpanded.has(product)) _pipelineExpanded.delete(product);
+  else _pipelineExpanded.add(product);
+  // Re-render without re-fetching
+  const el = document.getElementById('pipelineTable');
+  const table = el?.querySelector('table');
+  if (!table) { loadDispatchPipeline(); return; }
+  // Lightweight: just reload
+  loadDispatchPipeline();
 }
 
 // ── Channel master ─────────────────────────────────────
