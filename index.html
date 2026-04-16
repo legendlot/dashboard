@@ -5430,7 +5430,7 @@ function renderShipmentsTable(shipments, el) {
   };
   el.innerHTML = `<table>
     <thead><tr>
-      <th>Ref</th><th>Channel</th><th>Pool</th><th>Packed</th>
+      <th>Ref</th><th>Title</th><th>Channel</th><th>Pool</th><th>Packed</th>
       <th>Scheduled</th><th>Status</th><th>Actions</th>
     </tr></thead>
     <tbody>
@@ -5444,6 +5444,7 @@ function renderShipmentsTable(shipments, el) {
             ${s.shipment_no}
             ${isReady && s.status !== 'shipped' ? `<span style="font-size:8px;font-weight:700;color:var(--green);margin-left:6px">✓ READY</span>` : ''}
           </td>
+          <td style="font-size:12px;color:var(--t2)">${s.title || '<span style="color:var(--t3)">—</span>'}</td>
           <td>${s.dispatch_channels?.name || '—'}
             <span style="font-size:9px;color:var(--t3);margin-left:4px">${s.dispatch_channels?.fulfillment_model || ''}</span>
           </td>
@@ -5558,6 +5559,12 @@ async function editShipmentAction(id) {
   showModal(`Edit ${shp.shipment_no}`, `
     <div style="display:flex;flex-direction:column;gap:12px">
       <div>
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Title</label>
+        <input id="editShpTitle" type="text" value="${shp.title || ''}" placeholder="e.g. GT Shop Mumbai"
+          style="width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:6px;
+                 padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
+      </div>
+      <div>
         <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Scheduled Date</label>
         <input id="editShpDate" type="date" value="${shp.scheduled_date || ''}"
           style="width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:6px;
@@ -5591,6 +5598,7 @@ function updateEditTotal() {
 }
 
 async function submitEditShipment(id, ref) {
+  const title = document.getElementById('editShpTitle')?.value || null;
   const date  = document.getElementById('editShpDate')?.value  || null;
   const notes = document.getElementById('editShpNotes')?.value || null;
 
@@ -5612,7 +5620,7 @@ async function submitEditShipment(id, ref) {
 
   // Update metadata and lines in parallel
   const [metaRes, linesRes] = await Promise.all([
-    apiPost('updateShipment', { shipment_id: id, scheduled_date: date, notes }),
+    apiPost('updateShipment', { shipment_id: id, title, scheduled_date: date, notes }),
     apiPost('updateShipmentLines', { shipment_id: id, lines }),
   ]);
 
@@ -5651,6 +5659,12 @@ async function showCreateShipmentModal() {
 
   showModal('New Shipment', `
     <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Title <span style="color:var(--t3)">(optional — helps identify shipment)</span></label>
+        <input id="newShpTitle" type="text" placeholder="e.g. GT Shop Mumbai, Flipkart Week 17"
+          style="width:100%;background:var(--s2);border:1px solid var(--b1);
+                 border-radius:6px;padding:8px 12px;color:var(--t1);font-size:13px;box-sizing:border-box">
+      </div>
       <div>
         <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Channel *</label>
         <select id="newShpChannel" onchange="toggleWarehouseField()"
@@ -5806,8 +5820,9 @@ async function submitCreateShipment() {
 
   const res = await apiPost('createShipment', {
     channel_id:            channelId,
-    destination_warehouse: document.getElementById('newShpWarehouse')?.value || null,
-    scheduled_date:        document.getElementById('newShpDate')?.value      || null,
+    title:                 document.getElementById('newShpTitle')?.value      || null,
+    destination_warehouse: document.getElementById('newShpWarehouse')?.value  || null,
+    scheduled_date:        document.getElementById('newShpDate')?.value       || null,
     notes:                 document.getElementById('newShpNotes')?.value      || null,
     lines,
   });
