@@ -5312,11 +5312,22 @@ async function refreshShipmentDetail() {
         </table>` : '<div style="font-size:12px;color:var(--t3)">No manifest lines</div>'}
     </div>
 
-    <div style="font-size:10px;color:var(--t3);letter-spacing:0.12em;margin-bottom:10px">
-      BOXES (${boxes.length})
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:10px;color:var(--t3);letter-spacing:0.12em">BOXES (${boxes.length})</div>
+      ${!['shipped','cancelled'].includes(shipment.status) ? `
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" id="addBoxCount" min="1" max="50" value="1"
+            style="width:52px;background:var(--s2);border:1px solid var(--b1);border-radius:4px;
+                   padding:4px 6px;color:var(--t1);font-size:12px;font-family:var(--mono);text-align:center">
+          <button onclick="addBoxesToShipment('${shipmentDetailId}')"
+            style="background:var(--yellow);color:#000;border:none;border-radius:4px;
+                   padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">
+            + Add Boxes
+          </button>
+        </div>` : ''}
     </div>
 
-    ${boxes.length ? boxes.map(b => renderBoxCard(b)).join('') : '<div style="color:var(--t3);font-size:12px">No boxes yet — start packing on the scanner</div>'}
+    ${boxes.length ? boxes.map(b => renderBoxCard(b)).join('') : '<div style="color:var(--t3);font-size:12px;padding:8px 0">No boxes yet</div>'}
   `;
 }
 
@@ -5343,6 +5354,13 @@ function renderBoxCard(box) {
                style="background:var(--s3);color:var(--t2);border:1px solid var(--b1);
                       border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer">
                Reopen
+             </button>`
+          : ''}
+        ${box.status === 'open' && (box.unit_count || 0) === 0
+          ? `<button onclick="event.stopPropagation();deleteBoxDash('${box.id}','${box.box_ref}')"
+               style="background:var(--s3);color:var(--red);border:1px solid var(--red);
+                      border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer">
+               × Remove
              </button>`
           : ''}
       </div>
@@ -5402,6 +5420,25 @@ async function reprintBoxDash(boxId) {
   const res = await apiPost('reprintBoxLabel', { box_id: boxId });
   if (res.ok) showToast(`🖨 Reprint queued — ${res.data?.box_ref}`);
   else showToast(res.error || 'Reprint failed', 'error');
+}
+
+async function addBoxesToShipment(shipmentId) {
+  const n = parseInt(document.getElementById('addBoxCount')?.value) || 1;
+  if (n < 1) return;
+  const res = await apiPost('createBoxes', { shipment_id: shipmentId, count: n });
+  if (res.ok) {
+    showToast(`✓ ${res.data.created} box${res.data.created !== 1 ? 'es' : ''} added`);
+    await refreshShipmentDetail();
+  } else {
+    showToast(res.error || 'Failed to add boxes', 'error');
+  }
+}
+
+async function deleteBoxDash(boxId, boxRef) {
+  if (!confirm(`Remove ${boxRef}? This cannot be undone.`)) return;
+  const res = await apiPost('deleteBox', { box_id: boxId });
+  if (res.ok) { showToast(`${boxRef} removed`); await refreshShipmentDetail(); }
+  else showToast(res.error || 'Failed to remove', 'error');
 }
 
 async function removeBoxUnit(boxUnitId, boxId) {
