@@ -5333,8 +5333,13 @@ function renderBoxCard(box) {
           <span style="font-size:10px;color:var(--t3);margin-left:8px">${box.unit_count} units</span>
         </div>
         <span style="font-size:9px;font-weight:700;color:${statusColor[box.status]||'var(--t3)'}">${box.status?.toUpperCase()}</span>
-        ${box.status !== 'shipped' && box.status === 'packed'
-          ? `<button onclick="event.stopPropagation();reopenBoxDash('${box.id}')"
+        ${box.status === 'packed'
+          ? `<button onclick="event.stopPropagation();reprintBoxDash('${box.id}')"
+               style="background:var(--s3);color:var(--yellow);border:1px solid var(--b1);
+                      border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;margin-right:4px">
+               🖨 Reprint
+             </button>
+             <button onclick="event.stopPropagation();reopenBoxDash('${box.id}')"
                style="background:var(--s3);color:var(--t2);border:1px solid var(--b1);
                       border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer">
                Reopen
@@ -5391,6 +5396,12 @@ async function reopenBoxDash(boxId) {
   const res = await apiPost('reopenBox', { box_id: boxId });
   if (res.ok) { showToast('Box reopened'); await refreshShipmentDetail(); }
   else showToast(res.error || 'Failed to reopen', 'error');
+}
+
+async function reprintBoxDash(boxId) {
+  const res = await apiPost('reprintBoxLabel', { box_id: boxId });
+  if (res.ok) showToast(`🖨 Reprint queued — ${res.data?.box_ref}`);
+  else showToast(res.error || 'Reprint failed', 'error');
 }
 
 async function removeBoxUnit(boxUnitId, boxId) {
