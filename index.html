@@ -47,9 +47,24 @@ body::after{
   z-index:100;gap:0;
 }
 .login-mark{
-  font-family:var(--head);font-weight:900;font-size:10px;
-  letter-spacing:.5em;color:var(--t3);text-transform:uppercase;margin-bottom:48px;
+  display:flex;align-items:center;gap:12px;margin-bottom:48px;
 }
+.login-logo{
+  height:32px;width:auto;
+}
+.login-signal{
+  display:flex;align-items:end;gap:2px;
+}
+.login-bar{
+  width:2px;border-radius:1px;
+}
+.login-bar.yellow{background:var(--yellow)}
+.login-bar.red{background:var(--red)}
+.login-signal .login-bar:nth-child(1){height:8px}
+.login-signal .login-bar:nth-child(2){height:10px}
+.login-signal .login-bar:nth-child(3){height:14px}
+.login-signal .login-bar:nth-child(4){height:16px}
+.login-signal .login-bar:nth-child(5){height:12px}
 .login-mark span{color:var(--yellow)}
 .login-title{
   font-family:var(--head);font-weight:900;font-size:32px;
@@ -662,9 +677,18 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
 <!-- LOGIN -->
 <div id="login">
-  <div class="login-mark">Legend of <span>Toys</span></div>
-  <div class="login-title">Production</div>
-  <div class="login-sub">Dashboard & Reporting</div>
+  <div class="login-mark">
+    <div class="login-signal">
+      <span class="login-bar yellow"></span>
+      <span class="login-bar yellow"></span>
+      <span class="login-bar yellow"></span>
+      <span class="login-bar red"></span>
+      <span class="login-bar red"></span>
+    </div>
+    <img src="lot-logo.png" alt="Legend of Toys" class="login-logo" />
+  </div>
+  <div class="login-title">REDLINE</div>
+  <div class="login-sub">Dashboard</div>
   <div class="login-form">
     <div class="login-field"><input type="email" id="l_email" placeholder="Email address" autocomplete="email"></div>
     <div class="login-field"><input type="password" id="l_pass" placeholder="Password" autocomplete="current-password"></div>
