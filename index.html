@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LOT — Production Dashboard</title>
+<title>REDLINE Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Tomorrow:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
@@ -88,10 +88,24 @@ body::after{
   flex-shrink:0;position:relative;z-index:50;
 }
 .tb-logo{
+  display:flex;align-items:center;gap:8px;
   font-family:var(--head);font-weight:900;font-size:11px;
   letter-spacing:.3em;color:var(--yellow);text-transform:uppercase;
   white-space:nowrap;
 }
+.signal-pattern{
+  display:flex;align-items:end;gap:2px;
+}
+.bar{
+  width:2px;border-radius:1px;
+}
+.bar.yellow{background:var(--yellow)}
+.bar.red{background:var(--red)}
+.signal-pattern .bar:nth-child(1){height:6px}
+.signal-pattern .bar:nth-child(2){height:8px}
+.signal-pattern .bar:nth-child(3){height:12px}
+.signal-pattern .bar:nth-child(4){height:14px}
+.signal-pattern .bar:nth-child(5){height:10px}
 .tb-sep{width:1px;height:20px;background:var(--b2)}
 .tb-title{
   font-family:var(--head);font-weight:700;font-size:12px;
@@ -662,9 +676,18 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 <!-- APP -->
 <div id="app">
   <div class="topbar">
-    <div class="tb-logo">LOT</div>
+    <div class="tb-logo">
+      <div class="signal-pattern">
+        <span class="bar yellow"></span>
+        <span class="bar yellow"></span>
+        <span class="bar yellow"></span>
+        <span class="bar red"></span>
+        <span class="bar red"></span>
+      </div>
+      <span class="logo-text">REDLINE</span>
+    </div>
     <div class="tb-sep"></div>
-    <div class="tb-title">Production Floor</div>
+    <div class="tb-title">Dashboard</div>
     <div class="tb-right">
       <div class="refresh-indicator" id="refreshDot" title="Live — refreshes every 30s"></div>
       <div class="tb-date" id="tbDate"></div>
