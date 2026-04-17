@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Tomorrow:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
   --yellow: #F2CD1A;
@@ -690,7 +691,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 <body>
 
 <!-- LOGIN -->
-<div id="login">
+<div id="login" style="display:none">
   <div class="login-lot">
     <img src="lot-logo.png" alt="Legend of Toys" class="login-logo" />
   </div>
@@ -707,9 +708,7 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
   </div>
   <div class="login-divider"></div>
   <div class="login-form">
-    <div class="login-field"><input type="email" id="l_email" placeholder="Email address" autocomplete="email"></div>
-    <div class="login-field"><input type="password" id="l_pass" placeholder="Password" autocomplete="current-password"></div>
-    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <button class="login-btn" id="googleSignInBtn" onclick="doGoogleLogin()">Sign in with Google</button>
     <div class="login-err" id="l_err"></div>
   </div>
   <p class="login-footer">@legendoftoys.com</p>
@@ -1536,7 +1535,11 @@ tbody tr:hover td{background:var(--s3);color:var(--text)}
 
 <script>
 // ── CONFIG ──────────────────────────────────────────────────
-const API     = 'https://lotopsproxy.afshaan.workers.dev';
+const API      = 'https://lotopsproxy.afshaan.workers.dev';
+const _supa    = supabase.createClient(
+  'https://jkxcnjabmrkteanzoofj.supabase.co',
+  'sb_publishable_1Dd-r3h9Mou2Wqgn6t24Dw_lmWdBtLh'
+);
 const REFRESH = 30000;
 
 // ── STATE ────────────────────────────────────────────────────
@@ -1593,33 +1596,62 @@ async function api(action, params = {}) {
 
 // ── LOGIN ────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && document.getElementById('login').style.display !== 'none') doLogin();
 });
 
-async function doLogin() {
-  const email = document.getElementById('l_email').value.trim();
-  const pass  = document.getElementById('l_pass').value;
+// ── SUPABASE GOOGLE AUTH ──────────────────────────────────────
+async function doGoogleLogin() {
+  const btn = document.getElementById('googleSignInBtn');
   const errEl = document.getElementById('l_err');
-  if (!email || !pass) { errEl.textContent = 'Email and password required'; return; }
-  errEl.textContent = '';
-  const btn = document.querySelector('.login-btn');
-  btn.textContent = 'Signing in...'; btn.disabled = true;
+  btn.textContent = 'Redirecting...'; btn.disabled = true;
+  const { error } = await _supa.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin,
+      queryParams: { hd: 'legendoftoys.com' },
+    },
+  });
+  if (error) {
+    errEl.textContent = error.message;
+    btn.textContent = 'Sign in with Google'; btn.disabled = false;
+  }
+}
+
+async function initAuth() {
+  // Check for existing session (survives refresh)
+  const { data: { session } } = await _supa.auth.getSession();
+  if (session) {
+    await handleSession(session);
+    return;
+  }
+  // Listen for auth state changes (handles redirect back from Google)
+  _supa.auth.onAuthStateChange(async (_event, session) => {
+    if (session) await handleSession(session);
+  });
+  // Show login
+  document.getElementById('login').style.display = 'flex';
+}
+
+async function handleSession(session) {
+  const errEl = document.getElementById('l_err');
   try {
-    const res = await fetch(`${API}?action=login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pass }),
+    // Validate against Worker — gets role + full_name from users_profile
+    const res = await fetch(`${API}?action=ping`, {
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
     const data = await res.json();
-    if (!data.ok) { errEl.textContent = data.error || 'Invalid credentials'; return; }
-    token    = data.data.access_token;
+    if (!data.ok) {
+      errEl.textContent = data.error || 'Access denied — contact admin';
+      document.getElementById('login').style.display = 'flex';
+      await _supa.auth.signOut();
+      return;
+    }
+    token    = session.access_token;
     userRole = data.data.role;
-    userName = data.data.full_name;
+    userName = data.data.full_name || session.user.email;
     onLoggedIn();
   } catch(e) {
     errEl.textContent = 'Connection error';
-  } finally {
-    btn.textContent = 'Sign In'; btn.disabled = false;
+    document.getElementById('login').style.display = 'flex';
   }
 }
 
@@ -1639,12 +1671,13 @@ function onLoggedIn() {
   setTimeout(setContentHeight, 100);
 }
 
-function doLogout() {
+async function doLogout() {
+  await _supa.auth.signOut();
   token = null; userRole = null; userName = null;
   clearInterval(refreshTimer);
   document.getElementById('app').classList.remove('show');
   document.getElementById('login').style.display = 'flex';
-  document.getElementById('l_pass').value = '';
+  document.getElementById('l_err').textContent = '';
 }
 
 function updateClock() {
@@ -3309,7 +3342,7 @@ function openPrintWindow(batch, rows, qrUrls) {
 
   const win = window.open('', '_blank');
   if (!win) {
-    alert('Pop-up blocked — please allow pop-ups for dashboard.legendoftoys.com and try again.');
+    alert('Pop-up blocked — please allow pop-ups for redline.legendoftoys.com and try again.');
     return;
   }
   win.document.write(html);
@@ -5100,6 +5133,9 @@ async function initDispatch() {
   setDspPresetDates('10days');
   await Promise.all([loadDispatchCards(), loadDispatchUnits(), loadAllocatedByChannel(), loadShippedByChannel()]);
 }
+
+// ── STARTUP ──────────────────────────────────────────────────
+initAuth();
 
 // ── REPAIR QUEUE ─────────────────────────────────────────────
 async function loadRepairQueue() {
